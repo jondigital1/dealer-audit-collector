@@ -375,3 +375,13 @@ RESEARCH_CARD_LINKS = """() => { const out = []; const seen = new Set();
     const title = (c.querySelector('h1,h2,h3,h4,h5,[class*="title"],[class*="name"]') || {}).innerText || '';
     out.push({ label: (title.trim().split('\\n')[0] || label(pick)).slice(0, 60) + (label(pick) && title.trim() ? ' (' + label(pick).slice(0, 20) + ')' : ''), href, path: new URL(href).pathname }); }
   return out.filter(o => !/searchnew|searchused|inventory\\/index|new-vehicles\\/?$/i.test(o.path)).slice(0, 40); }"""
+
+# Button-like elements in a frame (the phone render, or one of its iframes): text, href host, tel, y in the frame
+PHONE_BUTTONS = """() => { const vis = e => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 40 && r.height > 18 && cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0'; };
+  const clean = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const isCta = e => e.tagName === 'BUTTON' || e.getAttribute('role') === 'button' || /btn|button|cta/i.test(e.className || '') || (e.tagName === 'A' && /^tel:/.test(e.getAttribute('href') || '')) || (e.tagName === 'INPUT' && /submit|button/.test(e.type));
+  const out = [];
+  for (const e of document.querySelectorAll('a, button, [role="button"], input[type="submit"], input[type="button"]')) { if (!vis(e) || !isCta(e)) continue; if (e.closest('header, nav, footer, [class*="navbar"], [class*="header"], [class*="footer"]')) continue;
+    const r = e.getBoundingClientRect(); let host = ''; try { host = e.href ? new URL(e.href).host : ''; } catch (x) {}
+    out.push({ text: clean(e.innerText || e.value || e.getAttribute('aria-label')).slice(0, 60), host, href: (e.href || '').slice(0, 200), y: Math.round(r.top + scrollY), h: Math.round(r.height), w: Math.round(r.width), tel: /^tel:/.test(e.getAttribute('href') || ''), target: e.target || '' }); }
+  return out.filter(b => b.text); }"""

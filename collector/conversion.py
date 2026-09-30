@@ -41,6 +41,50 @@ def price_label(p):
     return 'other'
 
 
+def phone_ctas(page, site_host, price_stack_y, price_stack_bottom, price_labels):
+    """The CTA stack as the phone render shows it: button-like elements in the main frame and in every iframe (the
+    Capital One digital-retail buttons sit in one), placed in page coordinates, from the vehicle title down to 900 px
+    below the price stack; gallery controls, tabs, the media toolbar and the offer accordions are left out."""
+    buttons = []
+    for fr in page.frames:
+        try:
+            if fr == page.main_frame:
+                off_x, off_y, frame_host = 0, 0, None
+            else:
+                el = fr.frame_element()
+                box = el.bounding_box()
+                if not box or box['width'] < 60 or box['height'] < 30:
+                    continue
+                sy = page.evaluate('() => window.scrollY')
+                off_x, off_y = box['x'], box['y'] + sy
+                frame_host = (fr.url.split('/')[2] if '://' in fr.url else '') or None
+            for b in fr.evaluate(snippets.PHONE_BUTTONS):
+                b['y'] = round(b['y'] + off_y)
+                b['frame'] = frame_host
+                buttons.append(b)
+        except Exception:
+            continue
+    buttons.sort(key=lambda b: b['y'])
+    skip = re.compile(r'load more|photos?$|^\d+\s*/\s*\d+$|^ext\.?$|^int\.?$|track price|^save$|^share$|compare|window sticker|full specs|^details$|highlights|full review|collapse|expand|^next$|^prev', re.I)
+    labels = {l.lower() for l in price_labels if l}
+    top = 150
+    bottom = (price_stack_bottom or price_stack_y or 2000) + 900
+    seen = set()
+    stack = []
+    for b in buttons:
+        if b['y'] < top or b['y'] > bottom or skip.search(b['text']) or b['text'].lower() in labels or re.search(r'\$\s?\d', b['text']):
+            continue
+        key = (b['text'].lower(), b['y'] // 12)
+        if key in seen:
+            continue
+        seen.add(key)
+        host = b['host'] or (b['frame'] if b['frame'] and site_host not in b['frame'] else '')
+        leaves = bool(host) and site_host not in host and not b['tel']
+        stack.append({'text': b['text'], 'host': host or site_host, 'href': b['href'], 'leaves_site': leaves, 'y_phone': b['y'], 'tel': b['tel'], 'target': b['target'],
+                      'frame': b['frame'], 'screen': b['y'] // 823 + 1})
+    return stack, buttons
+
+
 def phone_pass(store, browser, url, price_texts, cta_texts):
     """The VDP in a phone context: the load event, the skill's pop-up window, what shows on load, the full-page
     render cut into phone screens, then the swipes to the price stack and the CTA stack after a scroll pass."""
@@ -60,13 +104,16 @@ def phone_pass(store, browser, url, price_texts, cta_texts):
         page.evaluate(snippets.SCROLL_PASS)
         page.wait_for_timeout(800)
         after = page.evaluate(snippets.VDP_MOBILE, args)
+        site_host = url.split('/')[2].replace('www.', '')
+        cta_stack, all_buttons = phone_ctas(page, site_host, after['priceY'], after['priceBottom'], store.results.get('conversion', {}).get('_price_labels', []))
         out = {'source': "the collector's own phone render (412 x 823, device scale 1, mobile Chrome user agent)", 'rendered_at': rendered_at,
                'popup_window_s': config.POPUP_POLL_MS // 1000, 'popup_hit': poll.get('hit'), 'popup_open_s': poll.get('popupSec'), 'load_s': poll.get('loadSec'),
                'screens': screens, 'render_height_px': None,
                'price_stack_y': after['priceY'], 'price_stack_bottom_y': after['priceBottom'], 'cta_stack_y': after['ctaY'], 'cta_stack_bottom_y': after['ctaBottom'],
                'doc_height': after['docHeight'], 'popup_on_load': bool(onload['vendor'] or onload['fixed'] or poll.get('hit')), 'popup_detail': onload['vendor'] or onload['fixed'] or poll.get('hit'),
                'complyauto_panel_on_load': bool(onload['complyauto']), 'complyauto_text': onload['complyauto'],
-               'promo_banner_top': bool(PROMO.search(onload['topText'] or '')), 'top_third_text': onload['topText'][:300], 'tel_links': onload['tel']}
+               'promo_banner_top': bool(PROMO.search(onload['topText'] or '')), 'top_third_text': onload['topText'][:300], 'tel_links': onload['tel'],
+               'cta_stack': cta_stack, 'buttons_all': all_buttons[:80]}
         from PIL import Image
         out['render_height_px'] = Image.open(raw).size[1]
         for k, y in (('swipes_to_price_stack', after['priceY']), ('swipes_to_cta_stack', after['ctaY']), ('swipes_to_full_price_stack', after['priceBottom']), ('swipes_to_full_cta_stack', after['ctaBottom'])):
@@ -143,6 +190,7 @@ def vdp(store, page, report_page=None, browser=None):
     for attempt in range(1, 4):
         try:
             prices, ctas = read_stack(store, page, url, conv)
+            conv['_price_labels'] = [p.get('label') for p in prices]
             r['conversion'] = conv
             store.save()
         except Exception as e:
@@ -161,6 +209,18 @@ def vdp(store, page, report_page=None, browser=None):
                 failures.append(f'{type(e).__name__}: {str(e)[:160]}')
         if ml:
             conv['phone_render'] = ml
+            conv['ctas_desktop'] = ctas
+            if ml.get('cta_stack'):
+                # the CTA stack is what the phone shows (iframes included); the desktop read is kept beside it
+                conv['ctas'] = ml['cta_stack']
+                conv['cta_count'] = len(ml['cta_stack'])
+                conv['cta_stack_source'] = 'the phone render\'s DOM, iframes included'
+                conv['swipes_to_cta_stack'] = None
+                ys = [c['y_phone'] for c in ml['cta_stack']]
+                ml['cta_stack_y'] = min(ys)
+                ml['cta_stack_bottom_y'] = max(ys)
+                ml['swipes_to_cta_stack'] = int(min(ys) // 823)
+                ml['swipes_to_full_cta_stack'] = int(max(ys) // 823)
             conv['captures'] = [f'captures/{s}' for s in ml['screens']] + [c for c in conv['captures'] if 'vdp_photo' in c]
             conv['phone_screens_source'] = f'{ml["source"]}, {ml["rendered_at"]}'
             conv['swipes_to_price_stack'] = ml['swipes_to_full_price_stack'] if ml['swipes_to_full_price_stack'] is not None else ml['swipes_to_price_stack']
@@ -206,5 +266,6 @@ def vdp(store, page, report_page=None, browser=None):
         r['pages']['vdp'] = url
         r['pages']['vdp_vehicle'] = nxt['text'][:160]
         store.log(f'VDP swapped to {url}')
+    conv.pop('_price_labels', None)
     r['conversion'] = conv
     store.check('conversion', 'ok')
