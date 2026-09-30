@@ -201,7 +201,7 @@ def menu_crawl(store, page, max_items=72):
             else:
                 item['result'] = 'offsite'
             if item['result'] != 'ok':
-                name = f'dest_{slug(l["label"])}.png'
+                name = f'dest_{slug(l["label"] or (l["top"] + " " + l["path"]))}.png'
                 captures.shot(store, page, name, full_page=False, zoom=config.DEALER_ZOOM)
                 item['capture_dest'] = f'captures/{name}'
         except Exception as e:
@@ -217,17 +217,27 @@ def menu_crawl(store, page, max_items=72):
             label_re = re.compile(r'^\s*' + re.escape(item['top'] or item['label']) + r'\s*$')
             top = page.locator('nav a, header a, [class*="nav"] a, [class*="menu"] a').filter(has_text=label_re).filter(visible=True)
             if top.count() == 0:
-                # the item sits under an overflow entry (Dealer Inspire's "More"): open that first
-                more = page.locator('nav a, nav button, nav span, header a, header button, [class*="menu"] a').filter(has_text=re.compile(r'^\s*(more|menu)\s*$', re.I)).filter(visible=True).first
-                if more.count():
-                    more.hover(timeout=5000)
-                    page.wait_for_timeout(600)
+                # the item sits under an overflow entry (Dealer Inspire's "More", whose text reads "Show"): hover the
+                # nav's visible top-level items that have children, last first, until the item shows
+                overflow = page.locator('nav > ul > li, nav ul.nav > li, [class*="menu"] > ul > li').filter(visible=True)
+                for i in range(overflow.count() - 1, -1, -1):
+                    li = overflow.nth(i)
+                    cls = (li.get_attribute('class') or '')
+                    if not re.search(r'has-children|dropdown|overflow|more|parent', cls, re.I):
+                        continue
+                    try:
+                        li.hover(timeout=3000)
+                        page.wait_for_timeout(600)
+                    except Exception:
+                        continue
                     top = page.locator('nav a, header a, [class*="nav"] a, [class*="menu"] a').filter(has_text=label_re).filter(visible=True)
+                    if top.count():
+                        break
             top = top.first
             top.hover(timeout=8000)
             page.wait_for_timeout(700)
             page.evaluate("""(label) => { for (const a of document.querySelectorAll('nav a, header a, [class*="nav"] a')) if (a.innerText.trim() === label) { a.style.outline = '3px solid #D93025'; a.style.outlineOffset = '2px'; } }""", item['label'])
-            name = f'menu_{slug(item["label"])}.png'
+            name = f'menu_{slug(item["label"] or (item["top"] + " " + item["path"]))}.png'
             captures.shot(store, page, name)
             item['capture_menu'] = f'captures/{name}'
             page.mouse.move(config.VIEWPORT['width'] - 1, 10)
