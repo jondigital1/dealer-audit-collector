@@ -300,50 +300,66 @@ def report_pictures(store, page, url, which, report_url=None):
         page.wait_for_timeout(2500)
         page.evaluate(HIDE_COOKIE_BAR)
         for ff in ('mobile', 'desktop'):
-            if ff == 'desktop':
-                page.click(TAB[ff])
-                waited = wait_for_report(page, config.PSI_REPORT_TIMEOUT_S, 'desktop')
-                if waited > 3:
-                    store.log(f'PageSpeed desktop report for {which} rendered {waited} s after the tab click')
-                page.wait_for_timeout(1500)
-            lhr = page.evaluate(PAGE_LHR, ff)
-            if lhr:
-                nums = lab_numbers(lhr)
-                nums.update({'source': 'report', 'at': now_et(), 'strategy': ff, 'url': url, 'report_url': page.url.split('?')[0] + f'?form_factor={ff}',
-                             'final_url': lhr.get('finalDisplayedUrl')})
-                out['numbers'][ff] = nums
-            page.evaluate(snippets.ZOOM, config.PSI_ZOOM)
-            page.wait_for_timeout(500)
-            boxes = page.evaluate(REPORT_BOXES)
-            if boxes.get('fieldText'):
-                out['field'][ff] = parse_field_text(boxes['fieldText'])
-                if out['numbers'].get(ff) is not None:
-                    out['numbers'][ff]['field'] = out['field'][ff]
-            if boxes.get('gauge'):
-                clip_shot(store, page, f'psi_{which}_{ff}_gauges.png', boxes['gauge'])
-                out['captures'][f'{ff}_gauges'] = f'psi_{which}_{ff}_gauges.png'
-            else:
-                store.not_captured(f'psi_{which}_{ff}_gauges.png', 'no visible performance category on the report page')
-            if boxes.get('field'):
-                clip_shot(store, page, f'psi_{which}_{ff}_field.png', boxes['field'])
-                out['captures'][f'{ff}_field'] = f'psi_{which}_{ff}_field.png'
-            else:
-                store.not_captured(f'psi_{which}_{ff}_field.png', 'no field data card found on the report page')
-            page.evaluate(snippets.ZOOM, 1)
-            page.wait_for_timeout(300)
-        page.click(TAB['mobile'])
-        page.wait_for_timeout(1000)
+            try:
+                if ff == 'desktop':
+                    page.click(TAB[ff])
+                    waited = wait_for_report(page, config.PSI_REPORT_TIMEOUT_S, 'desktop')
+                    if waited > 3:
+                        store.log(f'PageSpeed desktop report for {which} rendered {waited} s after the tab click')
+                    page.wait_for_timeout(1500)
+                lhr = page.evaluate(PAGE_LHR, ff)
+                if lhr:
+                    nums = lab_numbers(lhr)
+                    nums.update({'source': 'report', 'at': now_et(), 'strategy': ff, 'url': url, 'report_url': page.url.split('?')[0] + f'?form_factor={ff}',
+                                 'final_url': lhr.get('finalDisplayedUrl')})
+                    out['numbers'][ff] = nums
+                page.evaluate(snippets.ZOOM, config.PSI_ZOOM)
+                page.wait_for_timeout(500)
+                boxes = page.evaluate(REPORT_BOXES)
+                if boxes.get('fieldText'):
+                    out['field'][ff] = parse_field_text(boxes['fieldText'])
+                    if out['numbers'].get(ff) is not None:
+                        out['numbers'][ff]['field'] = out['field'][ff]
+                if boxes.get('gauge'):
+                    clip_shot(store, page, f'psi_{which}_{ff}_gauges.png', boxes['gauge'])
+                    out['captures'][f'{ff}_gauges'] = f'psi_{which}_{ff}_gauges.png'
+                else:
+                    store.not_captured(f'psi_{which}_{ff}_gauges.png', 'no visible performance category on the report page')
+                if boxes.get('field'):
+                    clip_shot(store, page, f'psi_{which}_{ff}_field.png', boxes['field'])
+                    out['captures'][f'{ff}_field'] = f'psi_{which}_{ff}_field.png'
+                else:
+                    store.not_captured(f'psi_{which}_{ff}_field.png', 'no field data card found on the report page')
+            except Exception as e:   # one side's failure (PageSpeed's own "Something went wrong" on the desktop run) leaves the other side's evidence in place
+                store.not_captured(f'PageSpeed report {ff} for {which}', f'{type(e).__name__}: {str(e)[:300]}')
+            finally:
+                page.evaluate(snippets.ZOOM, 1)
+                page.wait_for_timeout(300)
+        # back to the mobile report, which is where View Treemap is clicked
+        try:
+            page.click(TAB['mobile'])
+            wait_for_report(page, 30, 'mobile')
+        except Exception as e:
+            store.log(f'could not return to the mobile report: {type(e).__name__}')
     except Exception as e:
         store.not_captured(f'PageSpeed report pictures for {which}', f'{type(e).__name__}: {str(e)[:300]}')
     out['seconds'] = round(time.time() - t0)
     return out
 
 
-def treemap_picture(store, page, name='treemap_home.png'):
+def treemap_picture(store, page, name='treemap_home.png', report_url=None):
     """A real click on View Treemap (the visible one) opens the treemap app in a new page; count the GTM nodes there
-    (the skill's snippet) and screenshot it."""
+    (the skill's snippet) and screenshot it. When no rendered report is showing (a rerun that PageSpeed failed), the
+    saved report is reopened by its URL first; a saved report loads in a few seconds."""
     try:
         btn = page.locator(SEL_TREEMAP_BTN + ':visible').first
+        if btn.count() == 0 and report_url:
+            store.log(f'no report showing; reopening the saved report {report_url}')
+            captures.goto(page, report_url.split('?')[0] + '?form_factor=mobile', wait='domcontentloaded')
+            wait_for_report(page, 60, 'mobile')
+            page.wait_for_timeout(1500)
+            page.evaluate(HIDE_COOKIE_BAR)
+            btn = page.locator(SEL_TREEMAP_BTN + ':visible').first
         btn.scroll_into_view_if_needed()
         with page.context.expect_page(timeout=20000) as new_page:
             btn.click()
@@ -430,7 +446,7 @@ def home(store, rp, url):
         r['gtm'] = {'count': src['gtm_count'], 'names': src['gtm_names'], 'scripts_total': src['scripts_total'],
                     'source': f'{src["source"]} script-treemap-data, mobile home run at {src["at"]}', 'capture': None}
     if pics.get('report_url'):
-        tm = treemap_picture(store, rp)
+        tm = treemap_picture(store, rp, report_url=pics['report_url'])
         if tm:
             if r['gtm']:
                 r['gtm']['capture'] = 'captures/treemap_home.png'
