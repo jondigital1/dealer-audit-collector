@@ -49,7 +49,7 @@ class Store:
             d.mkdir(parents=True, exist_ok=True)
         self.t0 = time.time()
         self.results = {
-            'collector': {'version': config.VERSION, 'host': 'agents', 'started_at': now_et(), 'finished_at': None,
+            'collector': {'version': config.VERSION, 'host': 'agents', 'started_at': now_et(), 'started_epoch': self.t0, 'finished_at': None,
                           'seconds': None, 'platform_headless': None, 'notes': []},
             'request': request,
             'preflight': None,
@@ -73,7 +73,10 @@ class Store:
             f.write(line + '\n')
 
     def save(self):
-        self.results['collector']['seconds'] = round(time.time() - self.t0)
+        # seconds since the run started, from the epoch kept in results.json, so a results file loaded and saved by a
+        # later process (a module rerun, the flags) keeps the run's own time rather than that process's
+        t0 = self.results.get('collector', {}).get('started_epoch') or self.t0
+        self.results['collector']['seconds'] = round(time.time() - t0)
         txt = json.dumps(self.results, indent=1, ensure_ascii=False)
         (self.dir / 'results.json').write_text(no_dash(txt), encoding='utf-8')
 
@@ -97,14 +100,26 @@ class Store:
     def record_capture(self, name, page_url, size):
         self.results['captures'][name] = {'page': page_url, 'w': size[0], 'h': size[1], 'at': time_et()}
 
+    def elapsed(self):
+        return time.time() - (self.results.get('collector', {}).get('started_epoch') or self.t0)
+
     def over_budget(self):
         """Past the hard stop: nothing more is opened."""
-        return time.time() - self.t0 > config.STORE_HARD_STOP_S
+        return self.elapsed() > config.STORE_HARD_STOP_S
 
     def over_soft_budget(self):
         """Past the soft budget: the extras (more research and specials pages) are skipped and listed."""
-        return time.time() - self.t0 > config.STORE_BUDGET_S
+        return self.elapsed() > config.STORE_BUDGET_S
 
-    def finish(self):
-        self.results['collector']['finished_at'] = now_et()
+    def finish(self, close=True):
+        """The run's end. A later save by another process (flags, a module rerun) keeps the first finished_at."""
+        if close and not self.results['collector'].get('finished_at'):
+            self.results['collector']['finished_at'] = now_et()
+            self.results['collector']['seconds'] = round(time.time() - (self.results['collector'].get('started_epoch') or self.t0))
+            self.save()
+            return
+        seconds = self.results['collector'].get('seconds')
         self.save()
+        if seconds is not None:
+            self.results['collector']['seconds'] = seconds
+            (self.dir / 'results.json').write_text(no_dash(json.dumps(self.results, indent=1, ensure_ascii=False)), encoding='utf-8')
