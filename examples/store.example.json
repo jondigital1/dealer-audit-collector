@@ -1,0 +1,16 @@
+{
+  "store": "Bay Hyundai",
+  "city": "Panama City",
+  "state": "FL",
+  "url": "https://www.bayhyundai.com",
+  "group": "Chief Auto Group",
+  "group_site": "https://www.chiefautogroup.com",
+  "sister_sites": ["baymitsubishi.com", "baydodge.net", "baylincoln.com", "baycars.com"],
+  "old_domain": null,
+  "competitor_candidates": [
+    { "name": "Hyundai of Dothan", "domain": "hyundaiofdothan.com" },
+    { "name": "Hampton Hyundai", "domain": "hamptonhyundai.com" }
+  ],
+  "towns": ["Panama City", "Panama City Beach", "Lynn Haven"],
+  "brand": "Hyundai"
+}

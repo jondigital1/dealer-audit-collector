@@ -1,0 +1,8 @@
+{
+  "group": "Chief Auto Group",
+  "group_site": "https://www.chiefautogroup.com",
+  "stores": [
+    { "store": "Bay Hyundai", "city": "Panama City", "state": "FL", "url": "https://www.bayhyundai.com", "brand": "Hyundai" },
+    { "store": "Bay Mitsubishi", "city": "Panama City", "state": "FL", "url": "https://www.baymitsubishi.com", "brand": "Mitsubishi" }
+  ]
+}
