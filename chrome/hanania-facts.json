@@ -1,0 +1,897 @@
+{
+  "store": "Hanania Hyundai of Orange Park",
+  "site_name": "Hyundai of Orange Park",
+  "city": "Jacksonville",
+  "state": "FL",
+  "domain": "hyundaioforangepark.com",
+  "platform": "Dealer Inspire",
+  "platform_evidence": "wp-content/plugins/dealerinspire assets, di-uploads-pod27.dealerinspire.com images, footer credit 'Advanced Automotive Dealer Websites by Dealer Inspire'",
+  "store_type": "new and used",
+  "captured_at": "Sep 30, 2026, 4:01 PM to 4:24 PM ET",
+  "capture_method": "Chrome path: Claude in Chrome driving D1 PC2's Chrome (Desktop PC, deviceId ba58adb3-917a-47a7-b7fd-c02ea8f850a7), capture rules from dealer-seo-audit-v2 references/04_capture.md, audit tab visible (document.visibilityState visible) for every pop-up load and PageSpeed run",
+  "pages": {
+    "home_url": "https://www.hyundaioforangepark.com/",
+    "srp_url": "https://www.hyundaioforangepark.com/new-vehicles/",
+    "vdp_url": "https://www.hyundaioforangepark.com/inventory/new-2026-hyundai-elantra-sel-sport-fwd-4d-sedan-kmhlm4dg1tu104618/",
+    "vdp_pick": "first new VDP link on the SRP",
+    "srp_new_count": 469,
+    "srp_new_count_source": "SRP H1 '469 New HYUNDAI in Jacksonville, FL' and title '469 New Hyundai Cars, SUVs in Stock'; the SRP meta description says 477",
+    "srp_inventory_links": 160,
+    "srp_http_links": 0,
+    "srp_http_example": null
+  },
+  "pagespeed": {
+    "home_report_url": "https://pagespeed.web.dev/analysis/https-www-hyundaioforangepark-com/bkioe852kn",
+    "home_run_at_et": "Sep 30, 2026, 4:14 PM",
+    "home_mobile": {
+      "score": 38,
+      "fcp_s": 7.2,
+      "lcp_s": 27.7,
+      "tbt_ms": 740,
+      "cls": 0,
+      "si_s": 11.5,
+      "lcp_node": "ComplyAuto cookie consent banner text, p.ca-banner-body-text (div.ca-primary-section > div.ca-text-wrap > div.ca-banner-text > p.ca-banner-body-text)",
+      "lcp_is_main_content": false,
+      "lcp_breakdown": "Time to first byte 10 ms, element render delay 3,760 ms",
+      "report_url": "https://pagespeed.web.dev/analysis/https-www-hyundaioforangepark-com/bkioe852kn?form_factor=mobile",
+      "run_at_et": "Sep 30, 2026, 4:14 PM",
+      "field": {
+        "status": "Failed",
+        "scope": "This URL",
+        "lcp": "3.5 s",
+        "inp": "256 ms",
+        "cls": "0.03",
+        "fcp": "2.4 s",
+        "ttfb": "0.9 s"
+      }
+    },
+    "home_desktop": {
+      "score": 55,
+      "fcp_s": 0.7,
+      "lcp_s": 4.1,
+      "tbt_ms": 370,
+      "cls": 0.021,
+      "si_s": 3.0,
+      "lcp_node": "hero slide image, img.width--full alt 'Hyundai Hope on Wheels' (a.linkWrapper > div.linkWrapper__content > picture > img.width--full)",
+      "lcp_is_main_content": true,
+      "report_url": "https://pagespeed.web.dev/analysis/https-www-hyundaioforangepark-com/bkioe852kn?form_factor=desktop",
+      "run_at_et": "Sep 30, 2026, 4:14 PM",
+      "field": {
+        "status": "Passed",
+        "scope": "This URL",
+        "lcp": "2.1 s",
+        "inp": "177 ms",
+        "cls": "0.02",
+        "fcp": "1.7 s",
+        "ttfb": "0.3 s"
+      }
+    },
+    "vdp_mobile": {
+      "score": 24,
+      "fcp_s": 3.6,
+      "lcp_s": 9.8,
+      "tbt_ms": 6000,
+      "cls": 0.129,
+      "si_s": 24.6,
+      "lcp_node": "vehicle photo 1, img.lazyload-loading alt 'New 2026 Silver Hyundai SEL Sport image 1' (div.swiper-wrapper > div.swiper-slide > div.vehicle-image-bg > img.lazyload-loading)",
+      "lcp_is_main_content": true,
+      "report_url": "https://pagespeed.web.dev/analysis/https-www-hyundaioforangepark-com-inventory-new-2026-hyundai-elantra-sel-sport-fwd-4d-sedan-kmhlm4dg1tu104618/vem24p03s6?form_factor=mobile",
+      "run_at_et": "Sep 30, 2026, 4:16 PM",
+      "field": {
+        "status": "Failed",
+        "scope": "Origin (the VDP has no URL-level data)",
+        "lcp": "2.8 s",
+        "inp": "311 ms",
+        "cls": "0.2",
+        "fcp": "2.3 s",
+        "ttfb": "1 s"
+      }
+    },
+    "vdp_desktop": {
+      "fcp_s": 0.7,
+      "lcp_s": 2.0,
+      "tbt_ms": 740,
+      "cls": 0.14,
+      "si_s": 2.1,
+      "lcp_node": "vehicle photo 1 (same element)",
+      "run_at_et": "Sep 30, 2026, 4:16 PM"
+    },
+    "runs": [
+      {
+        "report": "q584efbbls",
+        "at_et": "4:09 PM",
+        "page": "home",
+        "result": "field data shown; mobile lab 'Oops! Something went wrong. failed to retrieve the LHR', rerun"
+      },
+      {
+        "report": "gaeky4bb58",
+        "at_et": "4:11 PM",
+        "page": "home",
+        "mobile": {
+          "score": 47,
+          "fcp_s": 7.8,
+          "lcp_s": 29.4,
+          "tbt_ms": 350,
+          "cls": 0,
+          "si_s": 11.3,
+          "lcp_node": "ComplyAuto banner text p.ca-banner-body-text"
+        },
+        "desktop": {
+          "fcp_s": 0.7,
+          "lcp_s": 4.1,
+          "tbt_ms": 770,
+          "cls": 0.021,
+          "si_s": 2.9,
+          "lcp_node": "hero image img.width--full"
+        },
+        "note": "the treemap GTM count came from this report's mobile treemap; reopening the saved report later showed the desktop lab as an error, so desktop was rerun"
+      },
+      {
+        "report": "bkioe852kn",
+        "at_et": "4:14 PM",
+        "page": "home",
+        "quoted": true,
+        "mobile": {
+          "score": 38,
+          "fcp_s": 7.2,
+          "lcp_s": 27.7,
+          "tbt_ms": 740,
+          "cls": 0,
+          "si_s": 11.5,
+          "lcp_node": "ComplyAuto banner text p.ca-banner-body-text"
+        },
+        "desktop": {
+          "score": 55,
+          "fcp_s": 0.7,
+          "lcp_s": 4.1,
+          "tbt_ms": 370,
+          "cls": 0.021,
+          "si_s": 3.0,
+          "lcp_node": "hero image img.width--full"
+        }
+      },
+      {
+        "report": "wf9tn0vn0c",
+        "at_et": "4:19 PM",
+        "page": "home",
+        "mobile": {
+          "score": 26,
+          "fcp_s": 6.1,
+          "lcp_s": 30.6,
+          "tbt_ms": 3740,
+          "cls": 0,
+          "si_s": 11.0,
+          "lcp_node": "ComplyAuto banner text p.ca-banner-body-text"
+        },
+        "desktop": {
+          "fcp_s": 0.7,
+          "lcp_s": 3.8,
+          "tbt_ms": 830,
+          "cls": 0.021,
+          "si_s": 2.2,
+          "lcp_node": "hero image img.width--full"
+        }
+      },
+      {
+        "report": "vem24p03s6",
+        "at_et": "4:16 PM",
+        "page": "vdp",
+        "quoted": true,
+        "mobile": {
+          "score": 24,
+          "lcp_s": 9.8,
+          "lcp_node": "vehicle photo 1"
+        },
+        "desktop": {
+          "lcp_s": 2.0,
+          "lcp_node": "vehicle photo 1"
+        }
+      }
+    ],
+    "lcp_note": "Every completed home mobile run (4:11, 4:14 and 4:19 PM) measured LCP on the ComplyAuto cookie consent banner's text, at 29.4, 27.7 and 30.6 s, so no mobile run had a main-content LCP to quote; the 4:14 PM run is quoted because its desktop side is the one read in full. Desktop LCP was the hero image in every run.",
+    "lcp_node_source": "rendered report DOM, [id=lcp-breakdown-insight] .lh-node data-selector and data-snippet (the treemap tab's LHR only carries script-treemap-data)"
+  },
+  "gtm": {
+    "count": 10,
+    "ids": [
+      "G-GH9FXE8RZM",
+      "AW-637176547",
+      "G-VZ08EDVPE0",
+      "G-7JGFD965FF",
+      "G-DECSX5LLWL",
+      "GTM-WPGZWQGR",
+      "GTM-KMQZ7S3K",
+      "GTM-5F2F4LQH",
+      "GTM-PXQBXH8N",
+      "GTM-MT64F4S"
+    ],
+    "source": "home mobile report gaeky4bb58 (4:11 PM) treemap, __treemapOptions.lhr.audits['script-treemap-data'].details.nodes on googletagmanager.com, 92 script nodes in all"
+  },
+  "popup": {
+    "vendor": null,
+    "open_s": null,
+    "summary": "No homepage pop-up opened within 20 s on the first load, the second load or the SRP. The only on-load overlay was the ComplyAuto cookie consent banner at 4.52 s on the first visit, which had collapsed to a small floater button by the next check.",
+    "chat_vendor_present": "CarNow Chat and Text launcher pills (app.carnow.com), letzChat item in the header; no proactive chat invite in 20 s",
+    "method": "polled every 250 ms from script start for 20 s for visible position:fixed elements at least 40 x 40 px, recording first and last seen time with performance.now() from the start of the load; tab visible on every load",
+    "loads": [
+      {
+        "load": "first",
+        "page": "/",
+        "visible": true,
+        "dcl_s": 1.18,
+        "load_event_s": 2.44,
+        "watched_s": "2.58 to 22.58",
+        "popup_s": null,
+        "overlays": [
+          {
+            "t_s": 2.58,
+            "what": "AutoDriven 'Explore Payments' button, 191 x 45, bottom center (not a pop-up)"
+          },
+          {
+            "t_s": 4.52,
+            "what": "ComplyAuto cookie consent banner 'Your Privacy & Cookies', 1889 x 211 at the bottom"
+          }
+        ],
+        "note": "CarNow's Chat/Text launcher never showed on the first visit; ComplyAuto's blocker (CABlockerConfig) holds it until consent"
+      },
+      {
+        "load": "second, after clearing cookies, localStorage and sessionStorage from script",
+        "page": "/",
+        "visible": true,
+        "dcl_s": 0.33,
+        "load_event_s": 1.27,
+        "watched_s": "1.38 to 21.38",
+        "popup_s": null,
+        "cookies_not_clearable": [
+          "caconsentcookie",
+          "31283_cnpc_p",
+          "di_trip_id"
+        ],
+        "overlays": [
+          {
+            "t_s": 1.38,
+            "what": "Explore Payments button"
+          },
+          {
+            "t_s": 1.38,
+            "what": "CarNow Chat/Text launcher bar, pills only (not a pop-up)"
+          }
+        ],
+        "note": "the ComplyAuto banner did not return because caconsentcookie could not be cleared from script"
+      },
+      {
+        "load": "SRP",
+        "page": "/new-vehicles/",
+        "visible": true,
+        "dcl_s": 0.55,
+        "load_event_s": 1.79,
+        "watched_s": "1.81 to 21.81",
+        "popup_s": null,
+        "overlays": [
+          {
+            "t_s": 1.81,
+            "what": "Explore Payments button"
+          },
+          {
+            "t_s": 1.81,
+            "what": "CarNow Chat/Text launcher bar"
+          }
+        ]
+      }
+    ]
+  },
+  "seo_meta": {
+    "home": {
+      "title": "Hyundai of Orange Park | Hyundai Dealer in Jacksonville, FL",
+      "title_len": 59,
+      "meta": "We know you have high expectations, and we enjoy the challenge of meeting and exceeding them. Come experience the Hyundai of Orange Park difference.",
+      "meta_len": 148,
+      "h": [
+        1,
+        17,
+        1,
+        4,
+        2,
+        0
+      ],
+      "h1_text": [
+        "Welcome to Hyundai of Orange Park New Hyundai and Used Vehicles, Done Right (visible)"
+      ],
+      "images": 55,
+      "no_alt": 28,
+      "no_title": 55
+    },
+    "srp": {
+      "title": "469 New Hyundai Cars, SUVs in Stock | Hyundai of Orange Park",
+      "title_len": 60,
+      "meta": "With 477 new Hyundai vehicles in stock, Hyundai of Orange Park has what you're searching for. See our extensive inventory online now!",
+      "meta_len": 133,
+      "h": [
+        1,
+        43,
+        4,
+        7,
+        4,
+        0
+      ],
+      "h1_text": [
+        "469 New HYUNDAI in Jacksonville, FL (visible)"
+      ]
+    },
+    "vdp": {
+      "title": "New 2026 Hyundai ELANTRA SEL Sport 4D Sedan in Jacksonville #TU104618 | Hyundai of Orange Park",
+      "title_len": 94,
+      "meta": "New 2026 Hyundai ELANTRA SEL Sport 4D Sedan Silver for sale - only $23,971. Visit Hyundai of Orange Park in Jacksonville #FL serving Miami, Atlanta, GA and Orlando #KMHLM4DG1TU104618",
+      "meta_len": 182,
+      "h": [
+        1,
+        28,
+        15,
+        0,
+        2,
+        0
+      ],
+      "h1_text": [
+        "NEW 2026 HYUNDAI ELANTRA SEL SPORT (visible)"
+      ],
+      "note": "VDP titles and metas stay off audit slides by rule; recorded for the comparison only"
+    }
+  },
+  "scorecard": {
+    "srp_new_count": 469,
+    "srp_used_count": 467,
+    "mobile_score": 38,
+    "desktop_score": 55,
+    "home_mobile_lcp_s": 27.7,
+    "vdp_mobile_lcp_s": 9.8,
+    "gtm_count": 10,
+    "popup_on_load": false,
+    "popup_open_s": null,
+    "google_issue": null,
+    "bing_issue": null,
+    "note": "srp_used_count from the /used-vehicles/ H1 '467 Used and Certified Used' (its title says 453); google_issue and bing_issue not captured"
+  },
+  "address_hours": {
+    "site_address": "7600 Blanding Blvd, Jacksonville, FL 32244",
+    "site_address_where": "header, contact page title and Dealership Info sidebar",
+    "hours": {
+      "sales": {
+        "site": "Mon to Sat 9:00 AM to 9:00 PM, Sun 12:00 PM to 6:00 PM",
+        "google": null,
+        "bing": null
+      },
+      "service": {
+        "site": "Mon to Fri 7:00 AM to 6:30 PM, Sat 7:00 AM to 5:00 PM, Sun closed",
+        "google": null,
+        "bing": null
+      },
+      "parts": {
+        "site": "Mon 8:00 AM to 6:30 PM, Tue to Fri 7:00 AM to 6:30 PM, Sat 7:00 AM to 5:00 PM, Sun 9:00 AM to 3:00 PM",
+        "google": null,
+        "bing": null
+      }
+    },
+    "hours_where": "/contact-us/ (the menu's Hours & Directions page) and the Dealership Info sidebar on /blog/"
+  },
+  "special_hours": {
+    "found": false,
+    "rows": [],
+    "pages_checked": [
+      "/contact-us/",
+      "Dealership Info sidebar on /blog/",
+      "/",
+      "/service/",
+      "the VDP"
+    ],
+    "method": "textContent search for Special Hours, Holiday Hours and holiday names, plus special/holiday class and id selectors"
+  },
+  "phones": [
+    {
+      "number": "866-507-2184",
+      "where": "Main, contact page and Dealership Info sidebar"
+    },
+    {
+      "number": "877-920-3779",
+      "where": "Sales, header, contact page and sidebar"
+    },
+    {
+      "number": "877-933-4425",
+      "where": "Service, header, contact page and sidebar"
+    },
+    {
+      "number": "877-920-3845",
+      "where": "Parts, header, contact page and sidebar"
+    }
+  ],
+  "phones_note": "trackdni.callrevu.com loads on the home page, so the header numbers are call tracking lines and can change per visit",
+  "conversion": {
+    "complyauto_panel_on_load": true,
+    "complyauto_open_s": 4.52,
+    "complyauto_note": "1889 x 211 banner at the bottom on the first visit; collapsed to a 46 x 21 floater button later; caconsentcookie set",
+    "vdp_lcp_s": 9.8,
+    "vdp_offsite_ctas": [
+      {
+        "text": "Start Buying Process",
+        "host": "express.hyundaioforangepark.com",
+        "target": "_blank"
+      }
+    ]
+  },
+  "vdp_offsite_links": [
+    {
+      "text": "7600 Blanding Blvd, Jacksonville, FL 322...",
+      "host": "goo.gl",
+      "target": "_blank",
+      "kind": "map link"
+    },
+    {
+      "text": "EXPRESS STORE",
+      "host": "express.hyundaioforangepark.com",
+      "path": "/inventory",
+      "kind": "menu"
+    },
+    {
+      "text": "(menu, text hidden)",
+      "host": "express.hyundaioforangepark.com",
+      "path": "/how_it_works",
+      "kind": "menu"
+    },
+    {
+      "text": "(menu, text hidden)",
+      "host": "fl118.hyundaiaccessories.com",
+      "path": "/",
+      "target": "_blank",
+      "kind": "menu"
+    },
+    {
+      "text": "(menu, text hidden)",
+      "host": "www.hananiaautos.com",
+      "path": "/career/",
+      "target": "_blank",
+      "kind": "menu"
+    },
+    {
+      "text": "Start Buying Process",
+      "host": "express.hyundaioforangepark.com",
+      "target": "_blank",
+      "kind": "VDP CTA"
+    },
+    {
+      "text": "Cars.com",
+      "host": "www.cars.com",
+      "path": "/research/hyundai-elantra-2026/consumer-...",
+      "target": "_blank",
+      "kind": "reviews widget, 2 links"
+    },
+    {
+      "text": "click here.",
+      "host": "www.hyundaiusa.com",
+      "path": "/us/en/assurance/america-best-warranty",
+      "kind": "warranty copy"
+    },
+    {
+      "text": "(social icons)",
+      "host": "twitter.com, www.facebook.com, www.youtube.com",
+      "target": "_blank",
+      "kind": "footer"
+    },
+    {
+      "text": "Privacy Requests",
+      "host": "www.hananiaautos.com",
+      "path": "/privacy-requests",
+      "kind": "footer"
+    },
+    {
+      "text": "My Hyundai Owner",
+      "host": "owners.hyundaiusa.com",
+      "target": "_blank",
+      "kind": "footer"
+    },
+    {
+      "text": "AudioEye",
+      "host": "customer-portal.audioeye.com",
+      "target": "_blank",
+      "kind": "footer"
+    },
+    {
+      "text": "Dealer Inspire",
+      "host": "www.dealerinspire.com",
+      "target": "_blank",
+      "kind": "footer"
+    }
+  ],
+  "menu_links": [
+    {
+      "text": "Home",
+      "parent": "",
+      "href": "/",
+      "result": "home page"
+    },
+    {
+      "text": "Shop",
+      "parent": "",
+      "href": "/new-vehicles/",
+      "result": "ok: 469 New HYUNDAI"
+    },
+    {
+      "text": "Browse Pre-Owned Inventory",
+      "parent": "Shop",
+      "href": "/used-vehicles/",
+      "result": "ok: 467 Used and Certified Used"
+    },
+    {
+      "text": "Browse Certified Pre-Owned Inventory",
+      "parent": "Shop",
+      "href": "/used-vehicles/hcuv/",
+      "result": "ok: 14 Certified Used"
+    },
+    {
+      "text": "Schedule Test Drive",
+      "parent": "Shop",
+      "href": "/hyundai-test-drive/",
+      "result": "ok"
+    },
+    {
+      "text": "New Vehicle Specials",
+      "parent": "Shop",
+      "href": "/new-vehicles/new-vehicle-specials/",
+      "result": "ok: 10 New"
+    },
+    {
+      "text": "Service & Parts Specials",
+      "parent": "Shop",
+      "href": "/service-parts-special-coupons/",
+      "result": "ok (no H1)"
+    },
+    {
+      "text": "Pre-Owned Vehicle Specials",
+      "parent": "Shop",
+      "href": "/used-vehicles/pre-owned-vehicle-specials/",
+      "result": "ok: 186 Used and Certified Used; title says Serving Miami"
+    },
+    {
+      "text": "Value Your Trade",
+      "parent": "Shop",
+      "href": "/value-your-trade/",
+      "result": "ok"
+    },
+    {
+      "text": "Hyundai Select Used Vehicles",
+      "parent": "Shop",
+      "href": "/used-vehicles/hsu/",
+      "result": "ok but empty: 0 Certified Used in Jacksonville, FL"
+    },
+    {
+      "text": "Hyundai Research",
+      "parent": "Shop",
+      "href": "/hyundai-research/",
+      "result": "ok"
+    },
+    {
+      "text": "Electrified Vehicles",
+      "parent": "",
+      "href": "/new-vehicles/hybrids-electric/",
+      "result": "ok: 72 New HYUNDAI"
+    },
+    {
+      "text": "Vehicle Research (Electrified Models)",
+      "parent": "Electrified Vehicles",
+      "href": "/hyundai-model-research/",
+      "result": "ok"
+    },
+    {
+      "text": "EXPRESS STORE",
+      "parent": "",
+      "href": "express.hyundaioforangepark.com/inventory",
+      "result": "ok, other host (the dealer's express subdomain, title 'Express Cars')"
+    },
+    {
+      "text": "How Express Works",
+      "parent": "EXPRESS STORE",
+      "href": "express.hyundaioforangepark.com/how_it_works",
+      "result": "ok, other host"
+    },
+    {
+      "text": "Finance",
+      "parent": "",
+      "href": "/finance/",
+      "result": "ok"
+    },
+    {
+      "text": "Finance Application",
+      "parent": "Finance",
+      "href": "/finance/apply-for-financing/",
+      "result": "ok"
+    },
+    {
+      "text": "Payment Calculator",
+      "parent": "Finance",
+      "href": "/?page_id=15",
+      "result": "404: '404 Error - Page Not Found'"
+    },
+    {
+      "text": "Get Pre-Qualified",
+      "parent": "Finance",
+      "href": "/get-pre-qualified/",
+      "result": "ok"
+    },
+    {
+      "text": "We Buy Cars",
+      "parent": "Finance",
+      "href": "/we-buy-cars/",
+      "result": "ok"
+    },
+    {
+      "text": "Get Pre-Qualified with Capital One",
+      "parent": "Finance",
+      "href": "/get-pre-qualified-with-capital-one/",
+      "result": "ok"
+    },
+    {
+      "text": "Product Cancellation",
+      "parent": "Finance",
+      "href": "/cancellation1/",
+      "result": "ok"
+    },
+    {
+      "text": "New Hyundai Incentives",
+      "parent": "Specials",
+      "href": "/offers-incentives/",
+      "result": "ok"
+    },
+    {
+      "text": "Tire Special Coupons",
+      "parent": "Specials",
+      "href": "/tire-special-coupons/",
+      "result": "ok"
+    },
+    {
+      "text": "Track Your Vehicle Value",
+      "parent": "Specials",
+      "href": "/track-vehicle-value/",
+      "result": "ok"
+    },
+    {
+      "text": "Blue Link",
+      "parent": null,
+      "href": "/blue-link/",
+      "result": "ok"
+    },
+    {
+      "text": "Shopper Assurance",
+      "parent": null,
+      "href": "/shopper-assurance/",
+      "result": "ok"
+    },
+    {
+      "text": "Why Buy From Us",
+      "parent": null,
+      "href": "/about-us/",
+      "result": "ok"
+    },
+    {
+      "text": "Hope on Wheels",
+      "parent": null,
+      "href": "/hope-on-wheels/",
+      "result": "ok"
+    },
+    {
+      "text": "Hyundai Certified Used Vehicles",
+      "parent": null,
+      "href": "/hcuv/",
+      "result": "ok (no H1)"
+    },
+    {
+      "text": "Service & Parts",
+      "parent": "",
+      "href": "/service/",
+      "result": "ok; title says near Miami"
+    },
+    {
+      "text": "Ofertas de Servicio en Español",
+      "parent": "Service & Parts",
+      "href": "/servicio-repuestos-especiales-cupones/",
+      "result": "ok (no H1)"
+    },
+    {
+      "text": "Parts Special Offers",
+      "parent": "Service & Parts",
+      "href": "/parts/parts-specials/",
+      "result": "ok; title says Miami"
+    },
+    {
+      "text": "Schedule Service",
+      "parent": "Service & Parts",
+      "href": "/service/schedule-service/",
+      "result": "ok"
+    },
+    {
+      "text": "Order Parts & Accessories",
+      "parent": "Service & Parts",
+      "href": "fl118.hyundaiaccessories.com/",
+      "result": "leaves the site in a new tab; landing not opened (domain blocked by the extension)"
+    },
+    {
+      "text": "Tire Center",
+      "parent": "Service & Parts",
+      "href": "/hyundai-tire-center/",
+      "result": "redirects to /service/"
+    },
+    {
+      "text": "Check Vehicle For Recalls",
+      "parent": "Service & Parts",
+      "href": "/check-vehicle-for-recalls/",
+      "result": "ok"
+    },
+    {
+      "text": "Check for Recalls",
+      "parent": "Service & Parts",
+      "href": "/check-for-recalls/",
+      "result": "ok (no H1)"
+    },
+    {
+      "text": "Talk to the GM",
+      "parent": "About Us",
+      "href": "/talk-to-the-gm/",
+      "result": "ok"
+    },
+    {
+      "text": "Meet Our Team",
+      "parent": "About Us",
+      "href": "/about-us/staff/",
+      "result": "ok"
+    },
+    {
+      "text": "Why Service Here?",
+      "parent": "About Us",
+      "href": "/why-service-here/",
+      "result": "ok"
+    },
+    {
+      "text": "Contact Us",
+      "parent": "About Us",
+      "href": "/contact-us/",
+      "result": "ok"
+    },
+    {
+      "text": "Privacy Policy",
+      "parent": "About Us",
+      "href": "/privacy-policy/",
+      "result": "ok"
+    },
+    {
+      "text": "News/Blog",
+      "parent": "About Us",
+      "href": "/blog/",
+      "result": "ok: one post dated Sep 30, 2026"
+    },
+    {
+      "text": "Careers",
+      "parent": "About Us",
+      "href": "www.hananiaautos.com/career/",
+      "result": "leaves the site for the group site in a new tab; landing not opened (domain blocked by the extension)"
+    }
+  ],
+  "empty_spaces": {
+    "findings": [],
+    "pages_checked": [
+      "/",
+      "/new-vehicles/",
+      "the VDP",
+      "/blog/",
+      "/about-us/",
+      "/hyundai-research/",
+      "/service/",
+      "/service-parts-special-coupons/",
+      "/why-service-here/",
+      "/new-vehicles/new-vehicle-specials/"
+    ],
+    "candidates": [
+      {
+        "page": "every page checked",
+        "what": "DIV.sbWrapper hyundaiLogo__shoppingTools, 392 x 156 in the footer",
+        "verdict": "not blank: the Hyundai shopping tools icon row, 4 SVG icons (the same row shows in the top bar)"
+      },
+      {
+        "page": "/why-service-here/ and /service-parts-special-coupons/",
+        "what": "9 DIV.ImageOverlay, 315 x 315, in the Our Amenities image grid",
+        "verdict": "not blank: each sits over a loaded photo (img complete, 600 px natural width)"
+      },
+      {
+        "page": "/why-service-here/ and /service-parts-special-coupons/",
+        "what": "DIV StyledContentWrapper, 347 x 184, one SVG",
+        "verdict": "not blank: the Florida license plate graphic in the recall check form, seen on screen"
+      }
+    ],
+    "blog": "/blog/ shows one post, 'Santa Fe vs. Palisade: Which Family SUV Fits Your Household?', dated September 30th, 2026"
+  },
+  "about_us_first_para": "Hyundai of Orange Park is a new Hyundai and used auto dealer in Jacksonville, FL, serving drivers near Orange Park, Ponte Vedra, and St. Augustine under one roof. We carry hundreds of new Hyundai models, certified pre-owned Hyundais, and used vehicles across virtually any make, and we back that inventory with an on-site Finance Center and a state-of-the-art Service Center and Parts Department, all staffed by a team committed to your satisfaction at every visit.",
+  "clean": [
+    "SRP vehicle links: 0 of 160 use http://",
+    "No homepage or SRP pop-up within 20 s",
+    "No blank blocks where a photo belongs on the 10 pages checked",
+    "No Special Hours rows on the site today",
+    "Home title 59 characters and meta 148, both inside the limits; home has one visible H1",
+    "Desktop Core Web Vitals field data Passed"
+  ],
+  "findings": [
+    {
+      "section": "Broken Link",
+      "callout": "The Payment Calculator menu link opens a 404 page",
+      "evidence": "Finance menu item 'Payment Calculator' points to /?page_id=15, which shows '404 Error - Page Not Found' (title 'Page Not Found | Hyundai of Orange Park')",
+      "status": "candidate"
+    },
+    {
+      "section": "Core Web Vitals",
+      "callout": "Mobile fails Core Web Vitals on INP and LCP",
+      "evidence": "home mobile field data Failed: LCP 3.5 s, INP 256 ms, CLS 0.03",
+      "status": "candidate"
+    },
+    {
+      "section": "GTM",
+      "callout": "10 Google tag scripts load on the home page",
+      "evidence": "treemap count 10 (5 GTM containers, 5 gtag IDs)",
+      "status": "candidate"
+    },
+    {
+      "section": "Images",
+      "callout": "All 55 home page images are missing TITLE and 28 are missing ALT",
+      "evidence": "IMAGES 55, without ALT 28, without TITLE 55",
+      "status": "candidate"
+    }
+  ],
+  "observations": [
+    "Menu item 'Hyundai Select Used Vehicles' (/used-vehicles/hsu/) opens an empty SRP: '0 Certified Used in Jacksonville, FL'",
+    "Menu item 'Tire Center' (/hyundai-tire-center/) redirects to /service/",
+    "Page titles name Miami on a Jacksonville store: /service/ 'Auto Service, Oil Change & Car Maintenance near Miami', /parts/parts-specials/ 'Hyundai Parts Specials Miami', /used-vehicles/pre-owned-vehicle-specials/ 'Used, Pre-Owned Auto Specials | Hyundai of Orange Park Serving Miami'",
+    "The menu carries two recall pages: /check-vehicle-for-recalls/ and /check-for-recalls/",
+    "SRP meta description says 477 new vehicles while the H1 and title say 469",
+    "Home mobile LCP in every PageSpeed run was the ComplyAuto consent banner text, which appears late on a fresh visit"
+  ],
+  "not_captured": [
+    {
+      "item": "Google Business Profile",
+      "reason": "skipped for the gate; a Chrome step outside the collector"
+    },
+    {
+      "item": "Bing",
+      "reason": "skipped for the gate"
+    },
+    {
+      "item": "SpyFu",
+      "reason": "skipped for the gate"
+    },
+    {
+      "item": "Landing pages for 'Order Parts & Accessories' (fl118.hyundaiaccessories.com) and 'Careers' (www.hananiaautos.com/career/)",
+      "reason": "Claude in Chrome's site permissions on D1 PC2 block navigation to those two domains; both open in a new tab and leave the site"
+    },
+    {
+      "item": "A home mobile LCP measured on page content",
+      "reason": "all three completed mobile runs measured the ComplyAuto banner text"
+    },
+    {
+      "item": "ComplyAuto banner timing on the second load",
+      "reason": "caconsentcookie could not be cleared from script, so the banner did not return"
+    },
+    {
+      "item": "Menu group labels for Blue Link, Shopper Assurance, Why Buy From Us, Hope on Wheels and Hyundai Certified Used Vehicles",
+      "reason": "the script read the wrong parent for these five; the links themselves were opened"
+    },
+    {
+      "item": "Lighthouse version",
+      "reason": "the browser tool blocks the value in script output"
+    },
+    {
+      "item": "Mobile VDP phone screens",
+      "reason": "not part of the gate list"
+    }
+  ],
+  "menu_summary": {
+    "links": 45,
+    "not_found_404": 1,
+    "land_on_home": 0,
+    "other_host": 4,
+    "redirects": 1,
+    "empty_srp": 1
+  }
+}

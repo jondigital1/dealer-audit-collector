@@ -8,8 +8,10 @@ Playwright returns what the page returns; hosts come back as plain hosts."""
 # that way and 52/46/51 after a stepwise pass, the fixture's numbers), so the pass scrolls in steps first. A visible H1
 # is one with a box bigger than the 1 px sr-only clip; the counts still include hidden ones, as the extension does.
 SEO_META = """async () => {
-  const h = document.body.scrollHeight; for (let y = 0; y < h; y += 700) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 150)); }
-  window.scrollTo(0, document.body.scrollHeight); await new Promise(r => setTimeout(r, 2500)); window.scrollTo(0, 0);
+  // 400 px steps at 300 ms: Hanania's model carousel loaded its 16 slides only at this pace (Sep 30, 2026); a faster
+  // pass read 9 images without ALT where Chrome read 28
+  const h = document.body.scrollHeight; for (let y = 0; y < h; y += 400) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 300)); }
+  window.scrollTo(0, document.body.scrollHeight); await new Promise(r => setTimeout(r, 3000)); window.scrollTo(0, 0);
   const all = [...document.images], md = document.querySelector('meta[name="description"]');
   // a Google map widget adds over a hundred tile images of its own (Bay Hyundai: 118); the counts keep the page's own
   // images, and the with-map counts sit beside them
@@ -58,7 +60,10 @@ MENU_LINKS = """() => {
     if (/google\\.com\\/maps|maps\\.google|maps\\.apple|bing\\.com\\/maps|goo\\.gl\\/maps/i.test(a.href)) continue;   // the header's map link is not a menu item
     const top = a.closest('li'); const topItem = top && top.parentElement && top.parentElement.closest('li');
     const topLabel = topItem ? (topItem.querySelector(':scope > a, :scope > span, :scope > button') || topItem).innerText.trim().split('\\n')[0].slice(0, 60) : '';
-    out.push({ top: topLabel, label: a.innerText.trim().replace(/\\s+/g, ' ').slice(0, 80), host: u.host, path: u.pathname + (u.search ? '?' : ''), href: a.href, target: a.target });
+    // the label: the visible text, else the anchor's own text content (a menu item hidden behind an overflow entry
+    // has no innerText while it is hidden), else its aria-label or title
+    const label = (a.innerText.trim() || (a.textContent || '').trim() || a.getAttribute('aria-label') || a.getAttribute('title') || '').replace(/\\s+/g, ' ').slice(0, 80);
+    out.push({ top: topLabel, label, host: u.host, path: u.pathname + (u.search ? '?' : ''), query: u.search ? u.search.slice(0, 60) : '', href: a.href, target: a.target });
   }
   const seen = new Set();
   return out.filter(l => { const k = l.href; if (seen.has(k)) return false; seen.add(k); return true; });

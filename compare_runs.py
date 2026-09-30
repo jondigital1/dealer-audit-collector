@@ -50,6 +50,7 @@ def rows(c, f):
         ('Set-up', 'New vehicles on the SRP', g(c, 'pages', 'srp_new_count'), g(f, 'pages', 'srp_new_count'), 'exact'),
         ('Site speed', 'Home mobile score', ps('home_mobile', 'score'), g(f, 'pagespeed', 'home_mobile', 'score'), 'drift'),
         ('Site speed', 'Home mobile LCP s', ps('home_mobile', 'lcp_s'), g(f, 'pagespeed', 'home_mobile', 'lcp_s'), 'lcp'),
+        ('Site speed', 'Home mobile LCP element', (ps('home_mobile', 'lcp_element') or {}).get('label') or ps('home_mobile', 'lcp_element_note'), g(f, 'pagespeed', 'home_mobile', 'lcp_node') or g(f, 'pagespeed', 'home_mobile', 'lcp_element'), 'text'),
         ('Site speed', 'Home mobile TBT ms', ps('home_mobile', 'tbt_ms'), g(f, 'pagespeed', 'home_mobile', 'tbt_ms'), 'info'),
         ('Site speed', 'Home desktop score', ps('home_desktop', 'score'), g(f, 'pagespeed', 'home_desktop', 'score'), 'drift'),
         ('Site speed', 'Home desktop LCP s', ps('home_desktop', 'lcp_s'), g(f, 'pagespeed', 'home_desktop', 'lcp_s'), 'lcp'),
@@ -93,6 +94,12 @@ def rows(c, f):
         ('Conversion', 'ComplyAuto on load', g(c, 'conversion', 'complyauto_panel_on_load'), g(f, 'conversion', 'complyauto_panel_on_load'), 'exact'),
         ('Conversion', 'Promo banner top', g(c, 'conversion', 'promo_banner_top'), g(f, 'conversion', 'promo_banner_top'), 'exact'),
         ('Blog', 'Posts', g(c, 'blog', 'posts'), g(f, 'blog', 'posts'), 'exact'),
+        ('Special hours', 'Holidays named', (g(c, 'special_hours', 'holidays') or []), (g(f, 'special_hours', 'holidays') or []), 'exact'),
+        ('Empty spaces', 'Blank blocks found (pages)', sorted({e['page'] for e in (c.get('empty_blocks') or [])}), sorted({e.get('page') for e in (f.get('empty_blocks') or [])}), 'exact'),
+        ('Conversion', 'CTAs leaving the site', sorted(x['text'] for x in (g(c, 'conversion', 'ctas') or []) if x.get('leaves_site') and not x.get('tel')), sorted(g(f, 'conversion', 'ctas_offsite') or [x['text'] for x in (g(f, 'conversion', 'ctas') or []) if x.get('leaves_site')]), 'exact'),
+        ('Menu', '404 links', sum(1 for i in (g(c, 'menu', 'items') or []) if i.get('result') == '404'), sum(1 for i in (g(f, 'menu', 'items') or []) if i.get('result') == '404'), 'exact'),
+        ('Menu', 'Off-site links', sum(1 for i in (g(c, 'menu', 'items') or []) if i.get('result') in ('offsite', 'third_party', 'group_site', 'sister_site')), sum(1 for i in (g(f, 'menu', 'items') or []) if i.get('result') in ('offsite', 'third_party', 'group_site', 'sister_site')), 'exact'),
+        ('Menu', 'Empty pages', sum(1 for i in (g(c, 'menu', 'items') or []) if i.get('result') == 'empty'), sum(1 for i in (g(f, 'menu', 'items') or []) if i.get('result') == 'empty'), 'exact'),
     ]
     return out
 
@@ -125,12 +132,48 @@ def verdict(kind, a, b, drift, lcp_drift):
     return 'info'
 
 
+def chrome_view(f):
+    """A Chrome-path facts.json in the golden fixture's shape. The Sep 30, 2026 Hanania file names things a little
+    differently (pages.home_url, empty_spaces, menu_summary, special_hours.found); the fixture's names are the ones
+    rows() reads, so the other spellings are folded in here and the fixture's own files pass through untouched."""
+    f = dict(f)
+    pg = dict(f.get('pages') or {})
+    for a, b in (('home_url', 'home'), ('srp_url', 'srp'), ('vdp_url', 'vdp')):
+        if a in pg and b not in pg:
+            pg[b] = pg[a]
+    f['pages'] = pg
+    if f.get('links') is None and ('srp_inventory_links' in pg or 'srp_http_links' in pg):
+        f['links'] = {'srp_vehicle_links': pg.get('srp_inventory_links'), 'srp_vehicle_links_unique': pg.get('srp_inventory_links_unique'), 'srp_http_links': pg.get('srp_http_links')}
+    sh = f.get('special_hours')
+    if isinstance(sh, dict) and 'found' in sh:
+        f['special_hours'] = {'holidays': [r.get('holiday') or r for r in sh.get('rows') or []] if sh.get('found') else [], 'found': sh.get('found')}
+    es = f.get('empty_spaces')
+    if isinstance(es, dict) and f.get('empty_blocks') is None:
+        f['empty_blocks'] = es.get('findings') or []
+        if f.get('blog') is None and es.get('blog'):
+            m = re.search(r'(\d+|one|no) posts?', es['blog'], re.I)
+            f['blog'] = {'posts': {'one': 1, 'no': 0}.get((m.group(1) or '').lower(), num(m.group(1)) if m else None) if m else None, 'note': es['blog']}
+    ml = f.get('menu_links')
+    if f.get('menu') is None and isinstance(ml, list):
+        items = []
+        for l in ml:
+            res = (l.get('result') or '').lower()
+            kind = '404' if '404' in res else 'home_redirect' if 'land' in res and 'home' in res else 'empty' if 'empty' in res else 'offsite' if 'other host' in res else 'ok'
+            items.append({'top': l.get('parent'), 'label': l.get('text'), 'result': kind, 'landed_host': None})
+        f['menu'] = {'items_total': (f.get('menu_summary') or {}).get('links', len(items)), 'items': items}
+    cv = dict(f.get('conversion') or {})
+    if 'ctas' not in cv and cv.get('vdp_offsite_ctas') is not None:
+        cv['ctas_offsite'] = [c['text'] for c in cv['vdp_offsite_ctas']]
+    f['conversion'] = cv
+    return f
+
+
 def main(argv):
     if len(argv) < 2:
         print(__doc__)
         return 2
     c = json.load(open(argv[0]))
-    f = json.load(open(argv[1]))
+    f = chrome_view(json.load(open(argv[1])))
     drift = float(argv[argv.index('--drift') + 1]) if '--drift' in argv else 10
     lcp_drift = 2.0
     print(f'{"Section":18} {"Check":30} {"Collector":42} {"Chrome":42} Verdict')

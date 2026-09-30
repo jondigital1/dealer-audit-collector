@@ -470,7 +470,10 @@ def pages(store, page):
             if key == 'about_us':
                 r['about_us_first_para'] = entry['first_300']
         elif key == 'blog':
-            posts = page.evaluate("""() => document.querySelectorAll('article, .post, [class*="blog-post"], [class*="entry"]').length""")
+            # posts: distinct post links inside the post wrappers (one post can sit in several nested wrappers)
+            posts = page.evaluate("""() => { const wr = [...document.querySelectorAll('article, .post, [class*="blog-post"], [class*="entry"], [class*="post-item"], [class*="blog-item"]')];
+                const hrefs = new Set(); for (const w of wr) for (const a of w.querySelectorAll('a[href]')) { const t = (a.innerText || '').trim(); if (t.length > 8 && !/read more|continue/i.test(t) && /\\/(blog|news|post)/i.test(a.href)) hrefs.add(a.href.split('?')[0]); }
+                if (hrefs.size) return hrefs.size; const titled = wr.filter(w => w.querySelector('h1,h2,h3,h4') && !wr.some(o => o !== w && o.contains(w))); return titled.length; }""")
             nop = re.search(r'no posts|nothing found|no results|sorry, no [^\n]{0,60}available|check back', text, re.I)
             r['blog'] = {'url': url, 'posts': posts, 'no_posts_text': nop.group(0) if nop else None, 'capture': f'captures/{name}'}
         elif key == 'hours_page':
