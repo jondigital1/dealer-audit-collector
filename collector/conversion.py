@@ -82,6 +82,7 @@ def vdp(store, page, report_page, browser=None):
             store.check('pagespeed_vdp', 'failed', f'report page gave no numbers and the API failed: {type(e).__name__}: {str(e)[:200]}')
     store.save()
     src = rec['report'] or main
+    pagespeed.note_missing_lcp(store, src, 'VDP', 'mobile')
     if src:
         conv['vdp_lcp_s'] = src['lcp_s']
         conv['vdp_lcp_source'] = src['source']

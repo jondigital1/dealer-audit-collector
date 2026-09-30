@@ -5,12 +5,34 @@ a fresh context, the home page, the poll, screenshots before and after, then coo
 loaded again so a cookie-capped pop-up is seen twice, then the SRP for the same pop-up. Gubagoo's invite renders only
 with the flag off (Sep 30, 2026, Bay Hyundai), which is why the pass exists; Jonathan's call, Sep 30: the flag is off
 for this pass only, after the normal pass has loaded the site. Every load says which way it ran."""
+import re
+
 from . import captures, config, snippets
 from .store import now_et
 
 
+# What a firewall or challenge page says (the platform test's list); a normal page never carries these
+CHALLENGE = re.compile(r'access denied|attention required|checking your browser|cloudflare|incapsula|captcha|verify you are human|'
+                       r'request blocked|you don\'t have permission|bot detection|pardon our interruption|errors\.edgesuite\.net', re.I)
+
+
+def real_page(page, resp):
+    """Did the normal pass load the real page: a status under 400, no challenge words, and a menu with images."""
+    status = resp.status if resp else None
+    if status is not None and status >= 400:
+        return False, f'HTTP {status}'
+    st = page.evaluate("""() => ({ text: (document.body.innerText || '').slice(0, 4000), title: document.title, links: document.querySelectorAll('a[href]').length, imgs: document.images.length })""")
+    m = CHALLENGE.search(st['text'] + ' ' + st['title'])
+    if m:
+        return False, f'challenge page: "{m.group(0)}"'
+    if st['links'] < 10 or st['imgs'] < 1:
+        return False, f'no real content: {st["links"]} links, {st["imgs"]} images'
+    return True, f'HTTP {status}, {st["links"]} links, {st["imgs"]} images'
+
+
 def one_load(store, page, home, selectors, n, shot=True):
-    captures.goto(page, home, wait='domcontentloaded')
+    resp = captures.goto(page, home, wait='domcontentloaded')
+    page._collector_resp = resp
     if shot:
         page.wait_for_timeout(400)
         captures.shot(store, page, 'popup_before.png')
@@ -50,17 +72,32 @@ def timing(store, browser):
     ctx = browser.context()
     ctx.add_init_script(snippets.LCP_OBSERVER)
     page = ctx.new_page()
+    ok, why = False, None
     try:
         normal = one_load(store, page, home, selectors, 1, shot=False)
         normal['webdriver'] = True
+        ok, why = real_page(page, page._collector_resp)
+        normal['real_page'] = ok
+        normal['real_page_note'] = why
         r['popup']['normal_pass'] = normal
         r['popup']['vendors_present'] = page.evaluate(snippets.VENDOR_SCRIPTS)
         r['popup']['lcp_observed'] = normal.get('lcp_observed')
     except Exception as e:
-        r['popup']['normal_pass'] = {'error': f'{type(e).__name__}: {str(e)[:200]}', 'webdriver': True}
+        why = f'{type(e).__name__}: {str(e)[:200]}'
+        r['popup']['normal_pass'] = {'error': why, 'webdriver': True, 'real_page': False}
     finally:
         ctx.close()
     store.save()
+    if not ok:
+        # a blocked or challenged load: no flag-off pass (that would be routing around the block); the platform is
+        # marked chrome_only for this store and the timing goes to Chrome
+        r['popup']['method'] = f'timing pass not run: the normal pass did not load the real page ({why})'
+        store.results['collector']['platform_headless'] = 'chrome_only'
+        if store.results.get('preflight'):
+            store.results['preflight']['platform_headless'] = 'chrome_only'
+            store.results['preflight']['notes'].append(f'the pop-up step\'s normal load was blocked or challenged ({why}); marked chrome_only')
+        store.check('popup', 'skipped', f'the normal pass did not load the real page ({why}); no flag-off pass, pop-up timing goes to Chrome')
+        return
     # 2. the timing pass, with the automation flag off, the skill's two loads and the SRP
     loads = []
     try:

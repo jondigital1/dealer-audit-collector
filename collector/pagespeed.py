@@ -32,18 +32,20 @@ FIELD_STATUS = {'FAST': 'Passed', 'AVERAGE': 'Failed', 'SLOW': 'Failed'}
 
 # ---- the API ----
 def lcp_element_of(audits):
-    """The LCP element's node (label, snippet, selector) from the audits that carry one: the
-    largest-contentful-paint-element audit (the API's LHR) or the lcp-breakdown-insight (the skill's read)."""
-    for key in ('largest-contentful-paint-element', 'lcp-breakdown-insight', 'lcp-discovery-insight'):
+    """The LCP element's node (label, snippet, selector) where the skill reads it: audits['lcp-breakdown-insight']
+    .details, whose items hold the subpart table and, when Lighthouse attributed the LCP to an element, a
+    {type: "node"} item (Lighthouse 13.5, confirmed Sep 30, 2026 on the Bay Hyundai VDP reports; the home reports
+    carried no node). The older largest-contentful-paint-element audit is read the same way when present."""
+    for key in ('lcp-breakdown-insight', 'largest-contentful-paint-element', 'lcp-discovery-insight'):
         det = (audits.get(key) or {}).get('details') or {}
         stack = [det]
         while stack:
             x = stack.pop()
             if isinstance(x, dict):
-                node = x.get('node')
-                if isinstance(node, dict) and (node.get('nodeLabel') or node.get('snippet')):
+                node = x.get('node') if isinstance(x.get('node'), dict) else (x if x.get('type') == 'node' or x.get('nodeLabel') else None)
+                if node and (node.get('nodeLabel') or node.get('snippet')):
                     return {'label': node.get('nodeLabel'), 'snippet': node.get('snippet'), 'selector': node.get('selector'),
-                            'boundingRect': node.get('boundingRect'), 'from': key}
+                            'boundingRect': node.get('boundingRect'), 'from': f'{key}.details'}
                 stack.extend(v for v in x.values() if isinstance(v, (dict, list)))
             elif isinstance(x, list):
                 stack.extend(x)
@@ -382,6 +384,16 @@ def treemap_picture(store, page, name='treemap_home.png', report_url=None):
         return None
 
 
+def note_missing_lcp(store, run, which, ff):
+    """The skill checks what the LCP is before quoting a load time; a run with no node goes to Chrome for that."""
+    if not run or run.get('lcp_element'):
+        return
+    seen = (store.results.get('popup') or {}).get('lcp_observed') or {}
+    own = f'; the collector\'s own headless load painted {seen.get("tag", "").lower()} {seen.get("src") or seen.get("text") or ""} largest at {seen.get("t")} ms'.rstrip() if seen else ''
+    store.not_captured(f'LCP element, {which} {ff}', f'the {run.get("source", "")} run\'s lcp-breakdown-insight carried no node, so what the {run.get("lcp_s")} s LCP is (page content or a pop-up\'s image) '
+                                                        f'is unread; confirm in Chrome before quoting the load time{own}')
+
+
 def compare_runs(api, report):
     """SPEC section 3.3: a score more than 5 apart or an LCP more than 1 s apart between the API and the report."""
     if not api or not report:
@@ -425,6 +437,9 @@ def home(store, rp, url):
         else:
             store.check(f'pagespeed_home_{ff}', 'failed', 'no key and the report page gave no numbers; PageSpeed goes to Chrome')
         store.save()
+    for ff in ('mobile', 'desktop'):
+        rec = r['pagespeed'][f'home_{ff}']
+        note_missing_lcp(store, rec.get('report') or rec.get('api'), 'home', ff)
     # the treemap and the GTM count
     src = pics['numbers'].get('mobile') or api.get('mobile') or pics['numbers'].get('desktop') or api.get('desktop')
     if src:

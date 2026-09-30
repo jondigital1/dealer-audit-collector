@@ -24,13 +24,16 @@ def zip_store(store_dir, out_dir):
 
 
 def manifest(zips, out_dir):
+    """One manifest per send, named with the send time (manifest_2026-09-30_0837ET.json): Windows Taildrop keeps a
+    repeat as "name (1)" rather than overwriting, so a fixed name would leave the PC's manifest listing the first send."""
+    from zoneinfo import ZoneInfo
+    now = dt.datetime.now(ZoneInfo('America/New_York'))
     rows = []
     for z in zips:
         rows.append({'zip': z.name, 'store': z.name.rsplit('_', 1)[0], 'bytes': z.stat().st_size,
-                     'md5': hashlib.md5(z.read_bytes()).hexdigest(), 'made': dt.datetime.now().isoformat(timespec='seconds')})
-    path = Path(out_dir) / 'manifest.json'
-    old = json.loads(path.read_text()) if path.exists() else []
-    path.write_text(json.dumps(old + rows, indent=1))
+                     'md5': hashlib.md5(z.read_bytes()).hexdigest(), 'made': now.isoformat(timespec='seconds'), 'sent_at_et': now.strftime('%b %d, %Y, %I:%M %p ET').replace(' 0', ' ')})
+    path = Path(out_dir) / f'manifest_{now.strftime("%Y-%m-%d_%H%M")}ET.json'
+    path.write_text(json.dumps(rows, indent=1))
     return path
 
 
