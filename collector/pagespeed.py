@@ -415,10 +415,30 @@ def home(store, rp, url):
     for ff in ('mobile', 'desktop'):
         r['pagespeed'][f'home_{ff}'] = {'api': None, 'report': None, 'report_url': None, 'runs': [], 'lcp_is_popup': None, 'captures': {}}
     pics = report_pictures(store, rp, url, 'home')
+    # a run that warns (runWarnings, such as "The page loaded too slowly to finish within the time limit") runs once
+    # more; every run stays in runs[] marked had_warning, and the quoted run is one without a warning when there is one
+    warned = [ff for ff in ('mobile', 'desktop') if (pics['numbers'].get(ff) or {}).get('run_warnings')]
+    earlier = {}
+    if warned:
+        store.log(f'PageSpeed home report warned on {", ".join(warned)} ({(pics["numbers"][warned[0]]["run_warnings"] or [""])[0][:80]}); running the report once more')
+        earlier = {ff: n for ff, n in pics['numbers'].items()}
+        pics2 = report_pictures(store, rp, url, 'home')
+        if pics2['numbers']:
+            for ff in ('mobile', 'desktop'):
+                a, b = earlier.get(ff), pics2['numbers'].get(ff)
+                if b and (not b.get('run_warnings') or not a):
+                    pics['numbers'][ff] = b
+                    pics['captures'] = {**pics['captures'], **{k: v for k, v in pics2['captures'].items() if k.startswith(ff)}}
+            pics['report_url'] = pics2.get('report_url') or pics['report_url']
     api = {}
     for ff in ('mobile', 'desktop'):
         rec = r['pagespeed'][f'home_{ff}']
         rec['report'] = pics['numbers'].get(ff)
+        if earlier.get(ff) and earlier[ff] is not rec['report']:
+            earlier[ff]['had_warning'] = bool(earlier[ff].get('run_warnings'))
+            rec['runs'].append(earlier[ff])
+        if rec['report'] is not None:
+            rec['report']['had_warning'] = bool(rec['report'].get('run_warnings'))
         rec['report_url'] = (rec['report'] or {}).get('report_url') or pics.get('report_url')
         rec['captures'] = {k.split('_', 1)[1]: f'captures/{v}' for k, v in pics['captures'].items() if k.startswith(ff)}
         if rec['report']:
