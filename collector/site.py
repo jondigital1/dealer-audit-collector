@@ -81,6 +81,11 @@ def setup_pages(store, page):
     page.wait_for_timeout(1500)
     r['pages']['srp'] = page.url
     c = page.evaluate(SRP_COUNT)
+    # the model years on the SRP's cards (the research and slider checks compare against the newest one)
+    years = page.evaluate("""() => { const out = {}; for (const h of document.querySelectorAll('h2, h3, [class*="vehicle-card-title"], [class*="vehicle-title"], [class*="title"]')) { const m = (h.innerText || '').match(/\\b(20[2-3]\\d)\\b/); if (m) out[m[1]] = (out[m[1]] || 0) + 1; } return out; }""")
+    if years:
+        r['pages']['srp_model_years'] = sorted(int(y) for y in years)
+        r['pages']['srp_model_year_counts'] = years
     m = None
     if c['el']:
         m = re.search(r'(\d[\d,]*)\s*(new\s+)?(vehicles?|results?|matches?|cars?|listings?)', c['el'], re.I)
@@ -236,6 +241,15 @@ def fmt_phone(raw):
     return f'({digits[:3]}) {digits[3:6]}-{digits[6:]}' if len(digits) == 10 else None
 
 
+def ampm(t):
+    """'19:00' to '7:00pm', the way the site's own hours blocks read."""
+    m = re.match(r'^(\d{1,2}):(\d{2})', str(t))
+    if not m:
+        return str(t)
+    h, mi = int(m.group(1)), m.group(2)
+    return f'{h % 12 or 12}:{mi}{"am" if h < 12 else "pm"}'
+
+
 def hours_text(spec):
     """An openingHoursSpecification list as one line per day group: 'Mon to Fri 7:30am to 6:00pm; Sat ...'."""
     if isinstance(spec, str):
@@ -251,7 +265,7 @@ def hours_text(spec):
         days = [str(d).split('/')[-1][:3] for d in days]
         span = f'{days[0]} to {days[-1]}' if len(days) > 2 else ' and '.join(days) if days else ''
         if h.get('opens') and h.get('closes'):
-            out.append(f'{span} {h["opens"]} to {h["closes"]}')
+            out.append(f'{span} {ampm(h["opens"])} to {ampm(h["closes"])}')
         else:
             out.append(f'{span} closed')
     return '; '.join(out) or None
@@ -379,6 +393,7 @@ def pages(store, page):
     1.4, with the text flags, the empty-block candidates and the special hours read on each."""
     r = store.results
     home = r['pages']['home']
+    r['cx'], r['content'], r['empty_blocks'], r['slider'] = [], [], [], []
     captures.goto(page, home)
     links = page.evaluate(snippets.MENU_LINKS)
     slider = page.evaluate(snippets.SLIDER_ALTS)
@@ -447,7 +462,8 @@ def pages(store, page):
             store.not_captured(f'empty blocks on {key}', str(e))
         opened.append(key)
     # every other page the Specials menu opens (Parts, Accessory, Tire specials), captured the same way
-    specials_menu = [l for l in links if re.search(r'special|offer', l['top'] or '', re.I) and l['host'] == urlparse(home).netloc and l['href'] not in {c['url'] for c in r['cx']}][:8]
+    specials_menu = [l for l in links if (re.search(r'special|offer', l['top'] or '', re.I) or re.search(r'special|coupon', l['label'], re.I)) and l['host'] == urlparse(home).netloc
+                     and not re.search(r'/inventory/|/new/|/used/', l['path']) and l['href'] not in {c['url'] for c in r['cx']}][:10]
     for l in specials_menu:
         if store.over_budget():
             break
@@ -457,7 +473,7 @@ def pages(store, page):
         try:
             resp = captures.goto(page, l['href'], wait='domcontentloaded')
             page.wait_for_timeout(1000)
-            if not resp or resp.status != 200 or NOT_FOUND.search(page.title() or ''):
+            if not resp or resp.status != 200 or NOT_FOUND.search(page.title() or '') or page.url in {c['url'] for c in r['cx']}:
                 continue
             name = f'{key}.png'
             captures.shot(store, page, name, full_page=True, zoom=config.DEALER_ZOOM)

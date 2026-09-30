@@ -1,12 +1,40 @@
 """Tier 2: the skill's thresholds as numbers (SPEC.md section 6). Each flag is a candidate with the skill's standard
 line attached; Claude confirms every one against references/02_steps.md. Phase 3 emits the flags whose numbers it
 has; Phase 4 completes the set. Nothing here puts anything on a slide."""
+import re
+
+HOLIDAY_ORDER = ['New Year\'s Day', 'MLK Day', 'Presidents Day', 'Good Friday', 'Easter', 'Memorial Day', 'Juneteenth', 'Independence Day', 'July 4th',
+                 'Labor Day', 'Columbus Day', 'Veterans Day', 'Thanksgiving', 'Christmas Eve', 'Christmas Day', 'Christmas', 'New Year\'s Eve']
+
+
+def norm_hours(text):
+    """Hours text into a comparable form: 'mon 9:00am-7:00pm' rows, so '9 AM - 7 PM' and '9:00am - 7:00pm' agree."""
+    if not text:
+        return None
+    t = text if isinstance(text, str) else ' | '.join(text)
+    t = t.lower().replace('–', '-').replace(' to ', '-')
+    rows = {}
+    for m in re.finditer(r'\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*[:|]?\s*(closed|(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm))', t):
+        day = m.group(1)
+        if m.group(2) == 'closed':
+            rows[day] = 'closed'
+            continue
+        h1, m1, p1, h2, m2, p2 = m.group(3), m.group(4) or '00', m.group(5), m.group(6), m.group(7) or '00', m.group(8)
+        p1 = p1 or ('am' if int(h1) < 12 else 'pm')
+        rows[day] = f'{int(h1)}:{m1}{p1}-{int(h2)}:{m2}{p2}'
+    return rows or None
+
+
+def address_key(a):
+    """An address with every format difference kept (W. against W, Street against St), only case and spacing dropped."""
+    return re.sub(r'\s+', ' ', (a or '').strip().lower()) or None
 
 
 def apply(store):
     r = store.results
     F = store.flag
     ps = r.get('pagespeed') or {}
+
     def pick(k):   # the API run when there is a key, else the report page's numbers
         rec = ps.get(k) or {}
         return rec.get('api') or rec.get('report') or {}
@@ -28,7 +56,16 @@ def apply(store):
     for ff, rec in (('mobile', hm), ('desktop', hd)):
         fd = rec.get('field') or {}
         if fd.get('status') == 'Failed':
-            failing = [k.upper() for k in ('lcp', 'inp', 'cls') if (fd.get(k) or {}).get('category') in ('SLOW', 'AVERAGE')]
+            failing = []
+            for k in ('lcp', 'inp', 'cls'):
+                v = fd.get(k)
+                if isinstance(v, dict) and v.get('category') in ('SLOW', 'AVERAGE'):
+                    failing.append(k.upper())
+                elif isinstance(v, str):   # the report card's display value: judged against the metric's good limit
+                    num = float(re.sub(r'[^\d.]', '', v) or 0)
+                    limit = {'lcp': 2.5, 'inp': 200, 'cls': 0.1}[k]
+                    if (k == 'inp' and 'ms' in v and num > limit) or (k == 'lcp' and num > limit) or (k == 'cls' and num > limit):
+                        failing.append(k.upper())
             side = 'phones' if ff == 'mobile' else 'desktops'
             F(f'cwv_{ff}', 'Core Web Vitals', failing, 'Passed', f'{r.get("store")} fails Core Web Vitals on {side}', caps('field', ff))
     p = r.get('popup') or {}
@@ -39,50 +76,72 @@ def apply(store):
         # The skill's comment names the biggest miss; the decks so far lead with ALT text whenever any image lacks it
         # (Bay Hyundai: "46 of 52 images are missing ALT text" with 51 lacking TITLE), so ALT comes first.
         miss, what = (home['no_alt'], 'ALT text') if home.get('no_alt') else (home['no_title'], 'TITLE text')
-        F('images', 'Unoptimized Images', {'no_alt': home.get('no_alt'), 'no_title': home.get('no_title')}, 0, f'{miss} of {home["images"]} images are missing {what}', ['typed grid'])
+        F('images', 'Unoptimized Images', {'images': home['images'], 'no_alt': home.get('no_alt'), 'no_title': home.get('no_title')}, 0, f'{miss} of {home["images"]} images are missing {what}', ['typed grid'])
     for key, label in (('home', 'home'), ('srp', 'SRP')):
         m = (r.get('seo_meta') or {}).get(key) or {}
-        if m.get('title_len', 0) > 60 or m.get('meta_len', 0) > 160:
+        if (m.get('title_len') or 0) > 60 or (m.get('meta_len') or 0) > 160:
             F(f'title_meta_{key}', 'Titles and Meta Descriptions', {'title': m.get('title_len'), 'meta': m.get('meta_len')}, {'title': 60, 'meta': 160}, f'The {label} title runs {m.get("title_len")} characters, the meta {m.get("meta_len")}', ['typed grid'])
+    if home.get('title') and re.match(r'\s*home\b', home['title'], re.I):
+        F('title_generic_home', 'Titles and Meta Descriptions', home['title'], None, 'Its title starts with "Home"', ['typed grid'])
     if home.get('h') and home['h'][0] == 0:
         F('headers_home', 'Headers', home['h'], None, 'The home page has no H1', ['typed grid'])
     srp = (r.get('seo_meta') or {}).get('srp') or {}
     if srp.get('h') and (srp['h'][0] > 1 or srp['h'][1] == 0):
         F('headers_srp', 'Headers', srp['h'], None, 'Optimize the SRP template down to one H1' if srp['h'][0] > 1 else 'The SRP has no H2', ['typed grid'])
     l = r.get('links') or {}
-    if l.get('srp_http_links'):
-        F('vehicle_links', 'Vehicle Links', l['srp_http_links'], 0, f'All {l["srp_vehicle_links"]} vehicle links use http:// on an https:// site' if l['srp_http_links'] == l['srp_vehicle_links'] else f'{l["srp_http_links"]} of {l["srp_vehicle_links"]} vehicle links use http:// on an https:// site', ['typed grid'])
+    if l.get('srp_http_links') and l.get('srp_is_https', True):
+        n, tot = l['srp_http_links'], l.get('srp_vehicle_links')
+        F('vehicle_links', 'Vehicle Links', n, 0, f'All {tot} vehicle links use http:// on an https:// site' if n == tot else f'{n} of {tot} vehicle links use http:// on an https:// site', ['typed grid'])
     for it in ((r.get('menu') or {}).get('items') or []):
+        ev = [c for c in (it.get('capture_menu'), it.get('capture_dest')) if c]
         if it['result'] in ('404', 'home_redirect'):
-            F('broken_link', 'Broken Link', it['label'], None, f'The {it["label"]} menu link opens a 404 page' if it['result'] == '404' else f'The {it["label"]} menu link sends shoppers back to the home page', [it.get('capture_menu'), it.get('capture_dest')])
+            F('broken_link', 'Broken Link', it['label'], None, f'The {it["label"]} menu link opens a 404 page' if it['result'] == '404' else f'The {it["label"]} menu link sends shoppers back to the home page', ev)
         elif it['result'] in ('offsite', 'third_party', 'group_site', 'sister_site'):
-            F('offsite_link', 'Off-Site Link', it['label'], None, f'The {it["top"] or it["label"]} menu sends shoppers to {it["landed_host"]}', [it.get('capture_menu'), it.get('capture_dest')])
-    s = r.get('spyfu') or {}
-    if s.get('keywords') is not None:
-        if s['keywords'] < 1500:
-            F('organic_low', 'Organic Search', s['keywords'], 1500, f'{s["keywords"]:,} keywords leaves a lot of room to grow', ['SpyFu card in Chrome'])
-        if s.get('keywords_12m_ago') and s['keywords'] < s['keywords_12m_ago']:
-            F('organic_down', 'Organic Search', s['keywords'], s['keywords_12m_ago'], f'Down from about {s["keywords_12m_ago"]:,} keywords to {s["keywords"]:,} in 12 months', ['SpyFu card in Chrome'])
-        if s.get('rank_change_1m') is not None and s['rank_change_1m'] < 0:
-            F('rank_loss', 'Organic Search', s['rank_change_1m'], 0, f'Rankings fell a net {abs(s["rank_change_1m"]):,} spots last month', ['SpyFu card in Chrome'])
-        for c in s.get('competitors') or []:
-            if c.get('keywords') and c['keywords'] > s['keywords']:
-                F('competitor_ahead', 'Organic Search', c['keywords'], s['keywords'], f'{c["name"]} leads with {c["keywords"]:,} keywords', ['SpyFu card in Chrome'])
+            F('offsite_link', 'Off-Site Link', it['label'], None, f'The {it["top"] or it["label"]} menu sends shoppers to {it["landed_host"]}', ev)
+    # hours and address: Bing against the site (Google's come from Claude's Chrome read)
+    ah = r.get('address_hours') or {}
+    site_addr, bing_addr = address_key(ah.get('site_address')), address_key(ah.get('bing_address'))
+    if site_addr and bing_addr and site_addr != bing_addr:
+        F('address_format', 'Address and Hours', {'site': ah.get('site_address'), 'bing': ah.get('bing_address')}, 'one format', 'Use one address format on Google, Bing and the site',
+          [c for c in ah.get('captures', []) if 'address' in c])
+    site_sales = norm_hours(((ah.get('hours') or {}).get('sales') or {}).get('site_block') or ((ah.get('hours') or {}).get('sales') or {}).get('site'))
+    bing_hours = norm_hours(ah.get('bing_hours_rows'))
+    if site_sales and bing_hours:
+        diffs = {d: (site_sales.get(d), bing_hours.get(d)) for d in bing_hours if d in site_sales and site_sales[d] != bing_hours[d]}
+        if diffs:
+            F('hours_bing', 'Address and Hours', diffs, 'same schedule', 'Confirm the hours and match them on each site, Google and Bing', [c for c in ah.get('captures', []) if 'hours' in c] + ['captures/bing_panel.png'])
     cv = r.get('conversion') or {}
-    if cv.get('big_price_is') and cv['big_price_is'].startswith('fee'):
-        F('price_stack', 'Conversion Optimization SRP-VDP', cv['big_price_is'], 'selling price', 'The VDP\'s big price is a fee', cv.get('captures', []))
+    if cv.get('big_price_kind') == 'fee':
+        F('price_stack', 'Conversion Optimization SRP-VDP', cv['big_price_is'], 'selling price', f'The VDP\'s big price is the {cv["big_price_is"].split(" (")[0]}', cv.get('captures', []))
+    elif cv.get('price_stack') and not any(p.get('label_kind') == 'selling' for p in cv['price_stack']):
+        F('price_stack_no_selling', 'Conversion Optimization SRP-VDP', cv.get('big_price_is'), 'selling price', 'The VDP shows no selling price', cv.get('captures', []))
     for c in cv.get('ctas') or []:
-        if c.get('leaves_site'):
+        if c.get('leaves_site') and not c.get('tel'):
             F('cta_offsite', 'Conversion Optimization SRP-VDP', c['text'], None, f'The {c["text"]} CTA sends shoppers off the site', cv.get('captures', []))
     if cv.get('vdp_lcp_s') and cv['vdp_lcp_s'] > 2.5:
         F('vdp_lcp', 'Conversion Optimization SRP-VDP', cv['vdp_lcp_s'], 2.5, f'On a phone, the VDP\'s main content takes {cv["vdp_lcp_s"]} s to load', cv.get('captures', []))
+    if cv.get('popup_on_load'):
+        F('vdp_popup', 'Conversion Optimization SRP-VDP', cv.get('mobile_layout', {}).get('popup_detail'), None, 'A pop-up opens over the SRP and VDP on load' if (r.get('popup') or {}).get('on_srp') else 'A pop-up opens over the VDP on load', cv.get('captures', []))
+    if cv.get('promo_banner_top'):
+        F('vdp_promo_banner', 'Conversion Optimization SRP-VDP', (cv.get('mobile_layout') or {}).get('top_third_text', '')[:120], None, 'A promotion banner takes the top of the first phone screen', cv.get('captures', []))
+    if cv.get('click_to_call') is False:
+        F('click_to_call', 'Conversion Optimization SRP-VDP', False, True, 'Add click to call to improve mobile conversions', cv.get('captures', []))
     for cx in r.get('cx') or []:
         if cx.get('text_flags'):
-            F('specials_empty', 'Customer Experience', cx['text_flags'][0], None, f'The {cx["page"].replace("specials_", "").title()} Specials page is empty', [cx.get('capture')])
-    srp_years = set((r.get('pages') or {}).get('srp_new_count_text') and [] or [])
+            F('specials_empty', 'Customer Experience', cx['text_flags'][0], None, f'The {(cx.get("label") or cx["page"].replace("specials_", "")).replace("Specials", "").strip().title()} Specials page is empty', [cx.get('capture')])
+        if cx.get('page') == 'research' and cx.get('model_years') and (r.get('pages') or {}).get('srp_model_years'):
+            newest = max(r['pages']['srp_model_years'])
+            if max(cx['model_years']) < newest:
+                F('research_stale', 'Model Research Pages', cx['model_years'], newest, f'The {cx.get("label")} research page is built for {max(cx["model_years"])} while {newest}s are in stock', [cx.get('capture')])
+    yrs = (r.get('pages') or {}).get('srp_model_years') or []
+    if yrs:
+        for sl in r.get('slider') or []:
+            m = re.search(r'\b(20[2-3]\d)\b', sl.get('alt') or '')
+            if m and int(m.group(1)) < max(yrs):
+                F('slider_stale', 'Content Quality', sl['alt'], max(yrs), f'The home page slider still runs a {m.group(1)} slide', [sl.get('capture')])
     b = r.get('blog') or {}
-    if b and b.get('posts') == 0:
-        F('blog_empty', 'Empty Image Spaces', 0, 1, 'The blog has no posts', [b.get('capture')])
+    if b and (b.get('posts') == 0 or b.get('no_posts_text')):
+        F('blog_empty', 'Empty Image Spaces', b.get('no_posts_text') or 0, 1, 'The blog has no posts', [b.get('capture')])
     sh = r.get('special_hours') or {}
     if sh.get('holidays'):
         F('special_hours', 'Out-of-Date Hours', sh['holidays'], 'the next holiday only', f'The site still shows {" and ".join(sh["holidays"][:2])} hours', [sh.get('capture')])

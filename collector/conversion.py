@@ -148,6 +148,13 @@ def vdp(store, page, report_page, browser=None):
             for k in ('swipes_to_price_stack', 'swipes_to_cta_stack', 'popup_on_load', 'complyauto_panel_on_load', 'promo_banner_top'):
                 conv[k] = ml[k]
             conv['swipe_note'] = 'one swipe is one full 412 x 823 screen; counted in the collector\'s phone-sized layout, confirm on the phone screens'
+            have = {p['number'] for p in r.get('phones') or []}
+            for t in ml.get('tel_links') or []:
+                digits = re.sub(r'\D', '', t['number'])[-10:]
+                num = f'({digits[:3]}) {digits[3:6]}-{digits[6:]}' if len(digits) == 10 else None
+                if num and num not in have:
+                    have.add(num)
+                    r.setdefault('phones', []).append({'where': 'VDP in the phone-sized layout (tel link)', 'dept': t['text'][:30] or 'Call', 'number': num})
         except Exception as e:
             store.not_captured('VDP phone layout (swipes, pop-up on load)', f'{type(e).__name__}: {str(e)[:200]}')
     r['conversion'] = conv
