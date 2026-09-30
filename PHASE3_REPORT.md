@@ -2,10 +2,43 @@
 
 Also a shared doc: https://claude.ai/code/artifact/3e5cfa9e-7fba-438e-a46d-14f2359c702a
 
-The collector runs. It gathers a store's Tier 1 evidence headless, writes results.json, captures/ and a contact sheet,
-and hands the zip to the Desktop PC by Taildrop. It was built check by check against Bay Hyundai (Dealer.com, the
-golden fixture) and gated on Hanania Hyundai of Orange Park (Dealer Inspire) against a same-day Chrome-path
-facts.json. Seventeen commits in this folder, one per check that works; `compare_runs.py` prints the two sides.
+The collector runs, and the Phase 3 gate passed. It gathers a store's Tier 1 evidence headless, writes results.json,
+captures/ and a contact sheet, and hands the zip to the Desktop PC by Taildrop. It was built check by check against
+Bay Hyundai (Dealer.com, the golden fixture), dry-run against Hanania Hyundai of Orange Park (Dealer Inspire) with a
+same-day Chrome facts.json, and gated on Natchez Nissan (DealerOn, Jonathan's pick): Chrome ran the same store the
+same evening and every deterministic check matched number for number. Thirty-five commits in this folder, one per
+check that works; `compare_runs.py` prints the two sides.
+
+## 0. The gate: Natchez Nissan, Sep 30 (passed)
+
+Collector 5:53 to 6:00 PM ET, Chrome 5:53 to 6:21 PM ET on the Desktop PC. Jonathan's comparison: every deterministic
+check matches Chrome number for number. The pages and the 120 new vehicles; SEO META on all three pages; 36 vehicle
+links, 12 unique, 0 http://; 26 GTM scripts with the same URLs; no pop-up on either side; field data both sides; the
+phone render's four screens and both swipe counts; Bing; the site address and hours; the menu crawl; the empty New
+Specials page; the trade page typo; the 2025 Versa card. PageSpeed lab numbers differed only by run (collector 27 and
+38 with a "loaded too slowly" warning on desktop; Chrome 29 and 59 six minutes later).
+
+Seven fixes came out of the gate, each its own commit, and the store was rerun and handed off again (11 min 33 s,
+36 captures, 12 flags, zip 22 MB, 7:22 PM ET):
+
+1. The VDP CTA stack is read from the phone render's DOM, iframes included, with leaves_site and tel per button
+   (Confirm Availability, then BUY, FINANCE and CLICK TO CALL on this store). Capital One's digital-retail iframe
+   stays 0 x 0 in the headless phone context (watched for 38 s), so its buttons are listed under not_captured for
+   Chrome to confirm; the desktop read stays beside the phone stack.
+2. Every model card's link on a research page is opened and classified like the menu: LEAF's opens
+   /2024-nissan-leaf.html, a 404, now a Broken Link flag with the landing page captured.
+3. A PageSpeed report that warns (runWarnings) runs once more; every run stays in runs[], marked had_warning, and the
+   quoted run is one without a warning when there is one.
+4. The images flag leaves tracking pixels out of its ALT-or-TITLE choice (raw counts unchanged): the 3 without ALT
+   here were all pixels, so the miss is "33 of 43 images are missing TITLE text".
+5. hours_site.png shows Sales, Service and Parts in one shot; DealerOn's accordion closes one panel as another opens,
+   so collapsed panels are shown by style for the capture.
+6. collector.seconds and finished_at come from the run's own start and end (the start epoch lives in results.json).
+7. Blank-block candidates skip iframes, tables, link cards and blocks whose children carry a background image; the
+   blog cards, the trade tool area and the hours table no longer show up.
+
+Kept from the first run: the Certified Pre-Owned page marked empty and the Parts department typed AutoBodyShop in
+the schema.
 
 ## 1. What runs, and how long
 
@@ -69,7 +102,7 @@ server playing a 403 page, a challenge page and a real page. Everything else kee
 | Second load, storage cleared | 6.2 s / 1.7 s | 6.5 s / 1.7 s |
 | On the SRP | 6.6 s | 7.0 s |
 
-## 5. The gate: Hanania Hyundai of Orange Park, Sep 30
+## 5. The dry run: Hanania Hyundai of Orange Park, Sep 30
 
 Collector at 9:33 AM ET (SEO META and set-up refreshed at 4:54 PM), Chrome path 4:01 to 4:24 PM ET.
 
@@ -98,8 +131,9 @@ Differences and their causes:
   (two blocked by Chrome's site permissions); the collector's second empty page is Parts Special Offers reading
   "We are currently updating".
 
-Verdict: every count the collector reads matches the Chrome path; PageSpeed differs by run-to-run drift; on the two
-flags asked about, the collector found the blank spaces the Chrome run missed and both agree the holiday hours are gone.
+Verdict of the dry run: every count the collector reads matches the Chrome path; PageSpeed differs by run-to-run
+drift; on the two flags asked about, the collector found the blank spaces the Chrome run missed and both agree the
+holiday hours are gone.
 
 ## 6. What the live sites taught (all in the code, with dates)
 
