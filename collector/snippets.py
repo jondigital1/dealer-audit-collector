@@ -200,7 +200,10 @@ POPUP_POLL = """async ({ selectors, maxMs }) => {
     const r = e.getBoundingClientRect(); return r.width * r.height > innerWidth * innerHeight / 3 && e.innerText && e.innerText.trim().length > 0; });
   let hit = null;
   await new Promise(res => { const iv = setInterval(() => {
-    for (const s of selectors) { try { const e = document.querySelector(s); if (e && (e.offsetWidth || e.offsetHeight)) { hit = { selector: s }; break; } } catch (x) {} }
+    // a vendor element counts once it is a pop-up, not a launcher icon: at least 150 x 150 or carrying text (Gubagoo's
+    // .gg-chat-wrapper is a 64 px icon first and the 300 x 364 invite a few seconds later)
+    for (const s of selectors) { try { const e = document.querySelector(s); if (!e) continue; const r = e.getBoundingClientRect(); const t = (e.innerText || '').trim();
+      if ((r.width >= 150 && r.height >= 150) || (r.width > 0 && t.length > 0)) { hit = { selector: s, w: Math.round(r.width), h: Math.round(r.height), text: t.slice(0, 200) }; break; } } catch (x) {} }
     if (!hit) { const b = big(); if (b) hit = { selector: 'fixed:' + (b.id || b.className || b.tagName).toString().slice(0, 60) }; }
     if (hit) { clearInterval(iv); res(); } }, 100); setTimeout(() => { clearInterval(iv); res(); }, maxMs); });
   const nav = performance.getEntriesByType('navigation')[0];

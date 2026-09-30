@@ -395,56 +395,41 @@ def compare_runs(api, report):
 
 
 def home(store, rp, url):
-    """PageSpeed on the home page: API numbers (with the key) for mobile and desktop, the report page's pictures and its
-    own numbers, the consistency check with one report rerun, then the treemap. Writes store.results['pagespeed'] and
-    ['gtm'] and marks the checks."""
+    """PageSpeed on the home page. The report page first: its pictures and its own numbers are what the skill quotes
+    (Jonathan, Sep 30, 2026). The API runs only for a side the report page did not give, since it adds nothing the deck
+    needs beyond that. Then the treemap. Writes store.results['pagespeed'] and ['gtm'] and marks the checks."""
     r = store.results
-    api = {}
     for ff in ('mobile', 'desktop'):
         r['pagespeed'][f'home_{ff}'] = {'api': None, 'report': None, 'report_url': None, 'runs': [], 'lcp_is_popup': None, 'captures': {}}
-        if not config.PSI_API_KEY:
-            continue
-        try:
-            main, runs = api_with_rerun(store, url, ff)
-            api[ff] = main
-            r['pagespeed'][f'home_{ff}'].update({'api': main, 'runs': list(runs), 'lcp_is_popup': main['lcp_is_popup']})
-            store.log(f'PageSpeed API home {ff}: score {main["score"]}, LCP {main["lcp_s"]} s, field {main["field"]["status"]}, {main["seconds"]} s')
-        except Exception as e:
-            store.check(f'pagespeed_home_{ff}', 'failed', f'API: {type(e).__name__}: {str(e)[:200]}')
-        store.save()
     pics = report_pictures(store, rp, url, 'home')
-    reruns = 0
-    for ff in ('mobile', 'desktop'):
-        diff = compare_runs(api.get(ff), pics['numbers'].get(ff))
-        if diff and reruns == 0:
-            store.log(f'PageSpeed home {ff}: API and report disagree ({"; ".join(diff)}); rerunning the report once')
-            reruns += 1
-            for f2 in ('mobile', 'desktop'):
-                if pics['numbers'].get(f2):
-                    r['pagespeed'][f'home_{f2}']['runs'].append(pics['numbers'][f2])
-            pics2 = report_pictures(store, rp, url, 'home')
-            if pics2['numbers']:
-                pics = pics2
-            break
+    api = {}
     for ff in ('mobile', 'desktop'):
         rec = r['pagespeed'][f'home_{ff}']
         rec['report'] = pics['numbers'].get(ff)
-        rec['report_url'] = (pics['numbers'].get(ff) or {}).get('report_url') or pics.get('report_url')
+        rec['report_url'] = (rec['report'] or {}).get('report_url') or pics.get('report_url')
+        rec['captures'] = {k.split('_', 1)[1]: f'captures/{v}' for k, v in pics['captures'].items() if k.startswith(ff)}
         if rec['report']:
             rec['runs'].append(rec['report'])
-        rec['captures'] = {k.split('_', 1)[1]: f'captures/{v}' for k, v in pics['captures'].items() if k.startswith(ff)}
-        rec['api_vs_report'] = compare_runs(api.get(ff), rec['report'])
-        if rec['lcp_is_popup'] is None and rec['report']:
             rec['lcp_is_popup'] = rec['report']['lcp_is_popup']
-        if rec['api'] or rec['report']:
+            rec['source'] = 'report page'
             store.check(f'pagespeed_home_{ff}', 'ok')
-        elif f'pagespeed_home_{ff}' not in r['checks']:
+        elif config.PSI_API_KEY:
+            try:
+                main, runs = api_with_rerun(store, url, ff)
+                api[ff] = main
+                rec.update({'api': main, 'runs': rec['runs'] + list(runs), 'lcp_is_popup': main['lcp_is_popup'], 'source': 'API (the report page gave no numbers for this side)'})
+                store.log(f'PageSpeed API home {ff} (report page fallback): score {main["score"]}, LCP {main["lcp_s"]} s, field {main["field"]["status"]}, {main["seconds"]} s')
+                store.check(f'pagespeed_home_{ff}', 'ok')
+            except Exception as e:
+                store.check(f'pagespeed_home_{ff}', 'failed', f'report page gave no numbers and the API failed: {type(e).__name__}: {str(e)[:200]}')
+        else:
             store.check(f'pagespeed_home_{ff}', 'failed', 'no key and the report page gave no numbers; PageSpeed goes to Chrome')
+        store.save()
     # the treemap and the GTM count
-    src = api.get('mobile') or pics['numbers'].get('mobile')
+    src = pics['numbers'].get('mobile') or api.get('mobile') or pics['numbers'].get('desktop') or api.get('desktop')
     if src:
         r['gtm'] = {'count': src['gtm_count'], 'names': src['gtm_names'], 'scripts_total': src['scripts_total'],
-                    'source': f'{src["source"]} script-treemap-data, mobile home run at {src["at"]}', 'capture': None}
+                    'source': f'{src["source"]} script-treemap-data, {src["strategy"]} home run at {src["at"]}', 'capture': None}
     if pics.get('report_url'):
         tm = treemap_picture(store, rp, report_url=pics['report_url'])
         if tm:
@@ -455,7 +440,7 @@ def home(store, rp, url):
                     store.noticed(f'GTM count differs: {r["gtm"]["count"]} in the {src["source"]} run, {tm["count"]} in the treemap tab', 'captures/treemap_home.png')
             else:
                 r['gtm'] = {'count': tm['count'], 'names': tm['names'], 'scripts_total': tm['total'], 'source': 'treemap tab', 'capture': 'captures/treemap_home.png'}
-    store.check('gtm', 'ok' if r['gtm'] else 'failed', None if r['gtm'] else 'no treemap data from the API or the report page')
+    store.check('gtm', 'ok' if r['gtm'] else 'failed', None if r['gtm'] else 'no treemap data from the report page or the API')
     store.save()
 
 

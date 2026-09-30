@@ -60,28 +60,28 @@ def vdp(store, page, report_page, browser=None):
     conv = {'ctas': [], 'cta_count': None, 'click_to_call': None, 'swipes_to_price_stack': None, 'swipes_to_cta_stack': None,
             'big_price_is': None, 'price_stack': [], 'popup_on_load': None, 'complyauto_panel_on_load': None, 'promo_banner_top': None,
             'photo_overlay_note': None, 'vdp_lcp_s': None, 'captures': []}
-    # PageSpeed mobile on the VDP: numbers by API (with the rerun rule), pictures from the report page (mobile only)
+    # PageSpeed mobile on the VDP: the report page first (its pictures, its numbers, its render); the API only when
+    # the report page gave nothing (Jonathan, Sep 30, 2026)
     r['pagespeed']['vdp_mobile'] = {'api': None, 'report': None, 'report_url': None, 'runs': [], 'lcp_is_popup': None, 'captures': {}, 'vehicle_swapped': False}
     rec = r['pagespeed']['vdp_mobile']
     main = None
-    if config.PSI_API_KEY:
-        try:
-            main, runs = pagespeed.api_with_rerun(store, url, 'mobile')
-            rec.update({'api': main, 'runs': list(runs), 'lcp_is_popup': main['lcp_is_popup']})
-            store.log(f'PageSpeed API VDP mobile: score {main["score"]}, LCP {main["lcp_s"]} s, {main["seconds"]} s')
-        except Exception as e:
-            store.check('pagespeed_vdp', 'failed', f'API: {type(e).__name__}: {str(e)[:200]}')
-    store.save()
     pics = pagespeed.report_pictures(store, report_page, url, 'vdp', sides=('mobile',)) if report_page else {'captures': {}, 'numbers': {}}
     rec['report'] = pics.get('numbers', {}).get('mobile')
     rec['report_url'] = (rec['report'] or {}).get('report_url') or pics.get('report_url')
+    rec['captures'] = {k.split('_', 1)[1]: f'captures/{v}' for k, v in pics.get('captures', {}).items()}
     if rec['report']:
         rec['runs'].append(rec['report'])
-        if rec['lcp_is_popup'] is None:
-            rec['lcp_is_popup'] = rec['report']['lcp_is_popup']
-    rec['captures'] = {k.split('_', 1)[1]: f'captures/{v}' for k, v in pics.get('captures', {}).items()}
-    rec['api_vs_report'] = pagespeed.compare_runs(main, rec['report'])
-    src = main or rec['report']
+        rec['lcp_is_popup'] = rec['report']['lcp_is_popup']
+        rec['source'] = 'report page'
+    elif config.PSI_API_KEY:
+        try:
+            main, runs = pagespeed.api_with_rerun(store, url, 'mobile')
+            rec.update({'api': main, 'runs': list(runs), 'lcp_is_popup': main['lcp_is_popup'], 'source': 'API (the report page gave no numbers)'})
+            store.log(f'PageSpeed API VDP mobile (report page fallback): score {main["score"]}, LCP {main["lcp_s"]} s, {main["seconds"]} s')
+        except Exception as e:
+            store.check('pagespeed_vdp', 'failed', f'report page gave no numbers and the API failed: {type(e).__name__}: {str(e)[:200]}')
+    store.save()
+    src = rec['report'] or main
     if src:
         conv['vdp_lcp_s'] = src['lcp_s']
         conv['vdp_lcp_source'] = src['source']

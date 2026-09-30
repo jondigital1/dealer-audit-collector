@@ -12,9 +12,10 @@ from . import config, snippets
 class Browser:
     """A headless Chromium with one context per store. Use as a context manager around a store's run."""
 
-    def __init__(self):
+    def __init__(self, automation_flag=True):
         self._pw = None
         self.browser = None
+        self.automation_flag = automation_flag
 
     def __enter__(self):
         self._pw = sync_playwright().start()
@@ -22,13 +23,42 @@ class Browser:
         # stripped-down headless shell, which Dealer.com's Akamai edge answers with a 403 Access Denied page (seen on
         # bayhyundai.com and butlerlexus.com, Sep 30, 2026); the full browser gets the normal page. No evasion beyond
         # a normal browser: the user agent below is the browser's own version, on a desktop.
-        self.browser = self._pw.chromium.launch(headless=True, channel='chromium')
+        # automation_flag=False turns off navigator.webdriver (Lighthouse's Chrome has it off too). Jonathan's call,
+        # Sep 30, 2026: only the pop-up timing pass runs that way, and only after the normal pass has loaded the site;
+        # everything else keeps the flag so a platform that blocks headless browsers still shows as chrome_only.
+        args = [] if self.automation_flag else ['--disable-blink-features=AutomationControlled']
+        self.browser = self._pw.chromium.launch(headless=True, channel='chromium', args=args)
         self.user_agent = config.user_agent_for(self.browser.version)
         return self
 
     def __exit__(self, *a):
         self.browser.close()
         self._pw.stop()
+
+    def sibling(self, automation_flag=False):
+        """A second browser on the same Playwright instance (a second sync_playwright() cannot start inside the first),
+        for the pop-up timing pass with the automation flag off. Use as a context manager."""
+        return _Sibling(self, automation_flag)
+
+    def context(self):
+        return self.browser.new_context(viewport=config.VIEWPORT, device_scale_factor=1, user_agent=self.user_agent,
+                                        locale=config.LOCALE, timezone_id=config.TIMEZONE, ignore_https_errors=False)
+
+
+class _Sibling:
+    def __init__(self, parent, automation_flag):
+        self.parent = parent
+        self.automation_flag = automation_flag
+        self.browser = None
+
+    def __enter__(self):
+        args = [] if self.automation_flag else ['--disable-blink-features=AutomationControlled']
+        self.browser = self.parent._pw.chromium.launch(headless=True, channel='chromium', args=args)
+        self.user_agent = config.user_agent_for(self.browser.version)
+        return self
+
+    def __exit__(self, *a):
+        self.browser.close()
 
     def context(self):
         return self.browser.new_context(viewport=config.VIEWPORT, device_scale_factor=1, user_agent=self.user_agent,

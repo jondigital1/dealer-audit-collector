@@ -97,6 +97,11 @@ class Store:
         self.results['captures'][name] = {'page': page_url, 'w': size[0], 'h': size[1], 'at': time_et()}
 
     def over_budget(self):
+        """Past the hard stop: nothing more is opened."""
+        return time.time() - self.t0 > config.STORE_HARD_STOP_S
+
+    def over_soft_budget(self):
+        """Past the soft budget: the extras (more research and specials pages) are skipped and listed."""
         return time.time() - self.t0 > config.STORE_BUDGET_S
 
     def finish(self):

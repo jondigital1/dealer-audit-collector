@@ -465,8 +465,9 @@ def pages(store, page):
     specials_menu = [l for l in links if (re.search(r'special|offer', l['top'] or '', re.I) or re.search(r'special|coupon', l['label'], re.I)) and l['host'] == urlparse(home).netloc
                      and not re.search(r'/inventory/|/new/|/used/', l['path']) and l['href'] not in {c['url'] for c in r['cx']}][:10]
     for l in specials_menu:
-        if store.over_budget():
-            break
+        if store.over_soft_budget():
+            store.not_captured(f'specials page {l["label"]}', 'soft time budget reached')
+            continue
         key = 'specials_' + slug(re.sub(r'\bspecials?\b', '', l['label'], flags=re.I).strip() or l['label'])
         if any(c['page'] == key for c in r['cx']):
             continue
@@ -489,8 +490,9 @@ def pages(store, page):
     # every page the Research menu opens (model research pages), and research pages elsewhere in the menu by path
     research = [l for l in links if (re.search(r'research|model', l['top'] or '', re.I) or '/research/' in l['path']) and l['host'] == urlparse(home).netloc][:12]
     for l in research:
-        if store.over_budget():
-            break
+        if store.over_soft_budget():
+            store.not_captured(f'research page {l["label"]}', 'soft time budget reached')
+            continue
         try:
             captures.goto(page, l['href'], wait='domcontentloaded')
             page.wait_for_timeout(800)

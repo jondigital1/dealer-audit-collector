@@ -37,7 +37,9 @@ PSI_TIMEOUT = 90_000            # kept for callers; the two below are what PageS
 PSI_API_TIMEOUT_S = 240         # the API took over 120 s on a slow home page (Bay Hyundai, Sep 30, 2026)
 PSI_REPORT_TIMEOUT_S = 150      # the report page took 103 s to render the same page
 POPUP_POLL_MS = 20_000
-STORE_BUDGET_S = 1500           # SPEC says 10 minutes; PageSpeed alone (three analyses of a slow page) can take that, so 25
+STORE_BUDGET_S = 900            # the soft budget: Bay Hyundai took 11 minutes end to end on Sep 30, 2026 (report page first); past it the extras
+                                # (more research and specials pages) are skipped and listed
+STORE_HARD_STOP_S = 1500        # the hard stop: 25 minutes, then the run writes what it has and moves on
 
 # The skill's zoom levels (references/04_capture.md): 1.4 on a dealer page rendered small, 1.15 on PageSpeed
 DEALER_ZOOM = 1.4
