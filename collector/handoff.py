@@ -34,12 +34,31 @@ def manifest(zips, out_dir):
     return path
 
 
+def taildrop_target():
+    """The Desktop PC's node name on the tailnet. The configured name is used when it is online; when it is not listed
+    but a node with that name plus a suffix is (jon-d1-pc-2 for jon-d1-pc, Sep 30, 2026), that one is used and said so."""
+    want = config.TAILDROP_TARGET
+    try:
+        st = subprocess.run(['tailscale', 'status', '--json'], capture_output=True, text=True, timeout=15)
+        peers = json.loads(st.stdout).get('Peer', {}).values() if st.returncode == 0 else []
+        names = {(p.get('DNSName') or p.get('HostName') or '').split('.')[0].lower(): p for p in peers}   # the MagicDNS name is what file cp takes
+    except Exception:
+        return want, None
+    if want in names:
+        return want, None
+    alt = sorted(n for n in names if n.startswith(want + '-') and names[n].get('OS', '').lower().startswith('win'))
+    if alt:
+        return alt[0], f'{want} is not on the tailnet; sending to {alt[0]} instead (set TAILDROP_TARGET in .env)'
+    return want, f'{want} is not on the tailnet; tailscale file cp will fail'
+
+
 def send(paths):
     """Taildrop each file to the Desktop PC, or copy it into the synced folder."""
     if config.HANDOFF_MODE == 'taildrop':
+        target, note = taildrop_target()
         for p in paths:
-            subprocess.run(['tailscale', 'file', 'cp', str(p), f'{config.TAILDROP_TARGET}:'], check=True)
-        return f'sent {len(paths)} file(s) to {config.TAILDROP_TARGET} by Taildrop (they land in its Downloads)'
+            subprocess.run(['tailscale', 'file', 'cp', str(p), f'{target}:'], check=True)
+        return f'sent {len(paths)} file(s) to {target} by Taildrop (they land in its Downloads)' + (f'; note: {note}' if note else '')
     config.HANDOFF_DIR.mkdir(parents=True, exist_ok=True)
     for p in paths:
         shutil.copy2(p, config.HANDOFF_DIR / p.name)

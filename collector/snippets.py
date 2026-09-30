@@ -130,8 +130,9 @@ VDP_STACK = """() => {
     if (t.length > 80 || !money.test(t)) continue;
     const r = e.getBoundingClientRect();
     let label = t.replace(money, '').replace(/[:|]/g, '').trim();
-    if (!label) { const prev = e.previousElementSibling; if (prev && clean(prev.innerText).length < 40 && !money.test(prev.innerText)) label = clean(prev.innerText);
-      else { let p = e.parentElement; for (let n = 0; p && n < 3 && !label; p = p.parentElement, n++) { const pt = clean(p.innerText); if (pt.length < 80 && pt.includes(t)) { const rest = pt.replace(t, '').trim(); if (rest && !money.test(rest)) label = rest; } } } }
+    if (!label) { // the label beside the figure: a previous sibling (a dt before its dd) of the element or of its ancestors, else the short ancestor text around it
+      for (let a = e, n = 0; a && n < 4 && !label; a = a.parentElement, n++) { const prev = a.previousElementSibling; if (prev && clean(prev.innerText) && clean(prev.innerText).length < 40 && !money.test(prev.innerText)) label = clean(prev.innerText); }
+      if (!label) { let p = e.parentElement; for (let n = 0; p && n < 3 && !label; p = p.parentElement, n++) { const pt = clean(p.innerText); if (pt.length < 80 && pt.includes(t)) { const rest = pt.replace(t, '').trim(); if (rest && !money.test(rest)) label = rest; } } } }
     raw.push({ text: t, label: label.slice(0, 40), value: parseFloat(t.match(money)[0].replace(/[$,\\s]/g, '')), negative: /^-/.test(t.match(money)[0]), y: Math.round(r.top + scrollY), x: Math.round(r.left), size: parseFloat(getComputedStyle(e).fontSize), weight: getComputedStyle(e).fontWeight });
   }
   raw.sort((a, b) => a.y - b.y || a.x - b.x);
@@ -178,8 +179,9 @@ VDP_MOBILE = """({ priceTexts, ctaTexts, popupSelectors }) => {
 }"""
 
 # The vehicle photo currently showing in the VDP's gallery: the visible image nearest the frame's center
-VDP_PHOTO = """() => { const imgs = [...document.querySelectorAll('img')].filter(i => { const r = i.getBoundingClientRect(); return r.width >= 300 && r.height >= 180 && i.closest('[id*="carousel"], [class*="carousel"], [class*="gallery"], [class*="media"], [class*="slider"], [class*="photo"]'); });
-  if (!imgs.length) return null; const cx = innerWidth / 2; imgs.sort((a, b) => Math.abs((a.getBoundingClientRect().left + a.getBoundingClientRect().right) / 2 - cx) - Math.abs((b.getBoundingClientRect().left + b.getBoundingClientRect().right) / 2 - cx));
+VDP_PHOTO = """() => { const imgs = [...document.querySelectorAll('img')].filter(i => { const r = i.getBoundingClientRect(); return r.width >= 300 && r.height >= 180 && r.top + scrollY < 2200 && i.closest('[id*="carousel"], [class*="carousel"], [class*="gallery"], [class*="media"], [class*="slider"], [class*="photo"]'); });
+  if (!imgs.length) return null; const cx = innerWidth / 2; const area = i => i.getBoundingClientRect().width * i.getBoundingClientRect().height; const big = Math.max(...imgs.map(area));
+  const top = imgs.filter(i => area(i) >= big * 0.6); top.sort((a, b) => Math.abs((a.getBoundingClientRect().left + a.getBoundingClientRect().right) / 2 - cx) - Math.abs((b.getBoundingClientRect().left + b.getBoundingClientRect().right) / 2 - cx)); imgs.splice(0, imgs.length, ...top);
   const r = imgs[0].getBoundingClientRect(); return { x: Math.max(0, r.left + scrollX), y: r.top + scrollY, w: Math.min(r.width, innerWidth - Math.max(0, r.left)), h: r.height, src: (imgs[0].currentSrc || imgs[0].src || '').slice(0, 160), alt: (imgs[0].getAttribute('alt') || '').slice(0, 80) }; }"""
 
 # Clear cookies and storage so a cookie-capped pop-up opens again on reload (references/04_capture.md)

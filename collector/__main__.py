@@ -19,37 +19,52 @@ from . import bing, captures, config, conversion, flags, handoff, pagespeed, pla
 from .store import Store
 
 
+def step(store, name, fn, *args):
+    """One module of a store's run: a failure is recorded and the run moves on (the audit never waits)."""
+    if store.over_budget():
+        store.check(name, 'skipped', 'store time budget reached')
+        return None
+    try:
+        return fn(*args)
+    except Exception as e:
+        store.check(name, 'failed', f'{type(e).__name__}: {str(e)[:300]}')
+        return None
+
+
 def collect_store(request, out_dir, plat):
     store = Store(request, out_dir)
     store.log(f'start {request.get("store")} {request["url"]}')
-    with captures.Browser() as b:
-        ctx = b.context()
-        page = ctx.new_page()
-        pf = preflight.run(store, page, plat)
-        if not pf['loads']:
-            store.finish()
-            return store
-        if pf.get('platform_headless') == 'chrome_only':
-            store.not_captured('everything after the pre-flight', f'{pf["platform"]} is chrome_only in platforms.json')
-            store.finish()
-            return store
-        site.setup_pages(store, page)
-        # PageSpeed on the home page: numbers by API, pictures and the page's own numbers from the report page, the treemap
-        rp = ctx.new_page()
-        pagespeed.home(store, rp, store.results['pages']['home'])
-        popups.timing(store, b)
-        site.seo_meta(store, page)
-        site.srp_links(store, page)
-        site.contact_info(store, page)
-        bing.listing(store, page)
-        spyfu.organic(store)
-        conversion.vdp(store, page, rp, b)
-        site.menu_crawl(store, page)
-        site.pages(store, page)
-        rp.close()
-        ctx.close()
-    flags.apply(store)
-    captures.contact_sheet(store)
+    try:
+        with captures.Browser() as b:
+            ctx = b.context()
+            page = ctx.new_page()
+            pf = step(store, 'preflight', preflight.run, store, page, plat)
+            if not pf or not pf['loads']:
+                store.finish()
+                return store
+            if pf.get('platform_headless') == 'chrome_only':
+                store.not_captured('everything after the pre-flight', f'{pf["platform"]} is chrome_only in platforms.json')
+                store.finish()
+                return store
+            step(store, 'setup', site.setup_pages, store, page)
+            # PageSpeed on the home page: numbers by API, pictures and the page's own numbers from the report page, the treemap
+            rp = ctx.new_page()
+            step(store, 'pagespeed_home', pagespeed.home, store, rp, store.results['pages']['home'])
+            step(store, 'popup', popups.timing, store, b)
+            step(store, 'seo_meta', site.seo_meta, store, page)
+            step(store, 'srp_links', site.srp_links, store, page)
+            step(store, 'contact_info', site.contact_info, store, page)
+            step(store, 'bing', bing.listing, store, page)
+            spyfu.organic(store)
+            step(store, 'conversion', conversion.vdp, store, page, rp, b)
+            step(store, 'menu', site.menu_crawl, store, page)
+            step(store, 'pages', site.pages, store, page)
+            rp.close()
+            ctx.close()
+    except Exception as e:
+        store.check('browser', 'failed', f'{type(e).__name__}: {str(e)[:300]}')
+    step(store, 'flags', flags.apply, store)
+    step(store, 'contact_sheet', captures.contact_sheet, store)
     store.finish()
     store.log(f'done in {store.results["collector"]["seconds"]} s: {len(store.results["flags"])} flags, {len(store.results["not_captured"])} not captured')
     return store

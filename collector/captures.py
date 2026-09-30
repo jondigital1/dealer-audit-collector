@@ -36,8 +36,19 @@ class Browser:
 
 
 def goto(page, url, wait='load'):
-    """A real navigation with the collector's timeout; returns the response (or None on a client-side redirect)."""
-    return page.goto(url, wait_until=wait, timeout=config.NAV_TIMEOUT)
+    """A real navigation with the collector's timeout; returns the response (or None on a client-side redirect).
+    A navigation the page itself interrupts (a redirect still in flight from the last page) is tried once more."""
+    try:
+        return page.goto(url, wait_until=wait, timeout=config.NAV_TIMEOUT)
+    except Exception as e:
+        if 'interrupted by another navigation' not in str(e):
+            raise
+        try:
+            page.wait_for_load_state('load', timeout=10000)
+        except Exception:
+            pass
+        page.wait_for_timeout(500)
+        return page.goto(url, wait_until=wait, timeout=config.NAV_TIMEOUT)
 
 
 def prepare(page, zoom=None):

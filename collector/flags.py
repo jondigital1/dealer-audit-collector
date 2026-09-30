@@ -128,12 +128,14 @@ def apply(store):
         F('click_to_call', 'Conversion Optimization SRP-VDP', False, True, 'Add click to call to improve mobile conversions', cv.get('captures', []))
     for cx in r.get('cx') or []:
         if cx.get('text_flags'):
-            F('specials_empty', 'Customer Experience', cx['text_flags'][0], None, f'The {(cx.get("label") or cx["page"].replace("specials_", "")).replace("Specials", "").strip().title()} Specials page is empty', [cx.get('capture')])
+            what = re.sub(r'\bspecials?\b', '', (cx.get('label') or cx['page'].replace('specials_', '').replace('_', ' ')), flags=re.I).strip().title()
+            F('specials_empty', 'Customer Experience', cx['text_flags'][0], None, f'The {what + " " if what else ""}Specials page is empty', [cx.get('capture')])
         if cx.get('page') == 'research' and cx.get('model_years') and (r.get('pages') or {}).get('srp_model_years'):
-            newest = max(r['pages']['srp_model_years'])
-            if max(cx['model_years']) < newest:
-                F('research_stale', 'Model Research Pages', cx['model_years'], newest, f'The {cx.get("label")} research page is built for {max(cx["model_years"])} while {newest}s are in stock', [cx.get('capture')])
-    yrs = (r.get('pages') or {}).get('srp_model_years') or []
+            newest = max(int(y) for y in r['pages']['srp_model_years'])
+            page_years = [int(y) for y in cx['model_years']]
+            if max(page_years) < newest:
+                F('research_stale', 'Model Research Pages', page_years, newest, f'The {cx.get("label")} research page is built for {max(page_years)} while {newest}s are in stock', [cx.get('capture')])
+    yrs = [int(y) for y in (r.get('pages') or {}).get('srp_model_years') or []]
     if yrs:
         for sl in r.get('slider') or []:
             m = re.search(r'\b(20[2-3]\d)\b', sl.get('alt') or '')

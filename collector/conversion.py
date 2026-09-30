@@ -145,9 +145,24 @@ def vdp(store, page, report_page, browser=None):
         try:
             ml = mobile_layout(store, browser, url, [p['text'] for p in prices], [c['text'] for c in ctas if c['text']])
             conv['mobile_layout'] = ml
-            for k in ('swipes_to_price_stack', 'swipes_to_cta_stack', 'popup_on_load', 'complyauto_panel_on_load', 'promo_banner_top'):
+            # the skill counts swipes to the full price stack and the full CTA stack
+            conv['swipes_to_price_stack'] = ml['swipes_to_full_price_stack'] if ml['swipes_to_full_price_stack'] is not None else ml['swipes_to_price_stack']
+            conv['swipes_to_cta_stack'] = ml['swipes_to_full_cta_stack'] if ml['swipes_to_full_cta_stack'] is not None else ml['swipes_to_cta_stack']
+            for k in ('popup_on_load', 'complyauto_panel_on_load', 'promo_banner_top'):
                 conv[k] = ml[k]
-            conv['swipe_note'] = 'one swipe is one full 412 x 823 screen; counted in the collector\'s phone-sized layout, confirm on the phone screens'
+            conv['swipe_note'] = 'one swipe is one full 412 x 823 screen, counted to the bottom of the stack in the collector\'s phone-sized layout; confirm on the phone screens'
+            # a tel link that sits in the CTA stack on a phone (Call Now shows only there) is a CTA and click to call
+            if ml.get('cta_stack_y') is not None:
+                lo, hi = ml['cta_stack_y'] - 60, (ml.get('cta_stack_bottom_y') or ml['cta_stack_y']) + 120
+                for t in ml.get('tel_links') or []:
+                    if lo <= t['y'] <= hi and not any(c.get('tel') and c['text'] == t['text'] for c in conv['ctas']):
+                        conv['ctas'].append({'text': t['text'], 'host': 'tel', 'href': 'tel:' + t['number'], 'leaves_site': False, 'y_phone': t['y'], 'tel': True, 'target': '', 'note': 'shown on a phone only'})
+                conv['cta_count'] = len(conv['ctas'])
+                if any(c.get('tel') for c in conv['ctas']):
+                    conv['click_to_call'] = True
+                    conv['click_to_call_note'] = 'a tel link sits in the CTA stack on a phone'
+                elif not conv.get('click_to_call'):
+                    conv['click_to_call'] = False
             have = {p['number'] for p in r.get('phones') or []}
             for t in ml.get('tel_links') or []:
                 digits = re.sub(r'\D', '', t['number'])[-10:]
