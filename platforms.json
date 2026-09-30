@@ -1,0 +1,128 @@
+{
+ "Dealer.com": {
+  "url": "https://www.bayhyundai.com",
+  "status": 200,
+  "title": "Bay Hyundai | New & Used Hyundai Cars For Sale in Panama City FL",
+  "main_content": true,
+  "content": {
+   "links": 111,
+   "menu_links": 78,
+   "images": 53,
+   "vehicle_cards": 39,
+   "text_chars": 17082,
+   "inventory_words": true
+  },
+  "challenge": null,
+  "detected_platform": "Dealer.com",
+  "seconds_to_dom": 1.1,
+  "seconds": 5.2,
+  "browser": "153.0.8010.12",
+  "tested_at": "Sep 30, 2026, 5:13 AM ET",
+  "headless": "ok"
+ },
+ "DealerOn": {
+  "url": "https://www.longotoyota.com",
+  "status": 200,
+  "title": "New Toyota Dealer in El Monte, CA | Longo Toyota",
+  "main_content": true,
+  "content": {
+   "links": 169,
+   "menu_links": 9,
+   "images": 122,
+   "vehicle_cards": 1,
+   "text_chars": 17778,
+   "inventory_words": true
+  },
+  "challenge": null,
+  "detected_platform": "DealerOn",
+  "seconds_to_dom": 0.9,
+  "seconds": 5.0,
+  "browser": "153.0.8010.12",
+  "tested_at": "Sep 30, 2026, 5:13 AM ET",
+  "headless": "ok"
+ },
+ "Dealer Inspire": {
+  "url": "https://www.bayridgehonda.com",
+  "status": 200,
+  "title": "Bay Ridge Honda - New & Used Honda Dealership",
+  "main_content": true,
+  "content": {
+   "links": 481,
+   "menu_links": 213,
+   "images": 563,
+   "vehicle_cards": 81,
+   "text_chars": 43350,
+   "inventory_words": true
+  },
+  "challenge": null,
+  "detected_platform": "Dealer Inspire",
+  "seconds_to_dom": 1.9,
+  "seconds": 6.3,
+  "browser": "153.0.8010.12",
+  "tested_at": "Sep 30, 2026, 5:14 AM ET",
+  "headless": "ok"
+ },
+ "Sincro": {
+  "url": "https://www.arenabuickgmc.com",
+  "status": 200,
+  "title": "New, used, and pre-owned Buick, GMC, cars, trucks, and SUVs for sale at Arena Buick GMC in Hammonton",
+  "main_content": true,
+  "content": {
+   "links": 51,
+   "menu_links": 8,
+   "images": 36,
+   "vehicle_cards": 45,
+   "text_chars": 13363,
+   "inventory_words": false
+  },
+  "challenge": null,
+  "detected_platform": "Sincro",
+  "seconds_to_dom": 21.1,
+  "seconds": 25.1,
+  "browser": "153.0.8010.12",
+  "tested_at": "Sep 30, 2026, 5:14 AM ET",
+  "headless": "ok"
+ },
+ "pagespeed.web.dev": {
+  "url": "https://pagespeed.web.dev/analysis?url=https%3A%2F%2Fwww.google.com&form_factor=mobile",
+  "status": 200,
+  "title": "PageSpeed Insights",
+  "main_content": true,
+  "content": {
+   "links": 27,
+   "menu_links": 2,
+   "images": 56,
+   "vehicle_cards": 0,
+   "text_chars": 1066,
+   "inventory_words": false
+  },
+  "challenge": null,
+  "detected_platform": null,
+  "seconds_to_dom": 0.5,
+  "seconds": 4.5,
+  "browser": "153.0.8010.12",
+  "tested_at": "Sep 30, 2026, 5:14 AM ET",
+  "headless": "ok"
+ },
+ "bing.com/maps": {
+  "url": "https://www.bing.com/maps?q=Bay%20Hyundai%20641%20W%2015th%20St%20Panama%20City%20FL",
+  "status": 200,
+  "title": "Bay Hyundai 641 W 15th St Panama City FL - Bing Maps",
+  "main_content": true,
+  "content": {
+   "links": 33,
+   "menu_links": 5,
+   "images": 28,
+   "vehicle_cards": 11,
+   "text_chars": 1656,
+   "inventory_words": true
+  },
+  "challenge": null,
+  "detected_platform": null,
+  "seconds_to_dom": 0.6,
+  "seconds": 4.6,
+  "browser": "153.0.8010.12",
+  "tested_at": "Sep 30, 2026, 5:14 AM ET",
+  "headless": "ok"
+ }
+}

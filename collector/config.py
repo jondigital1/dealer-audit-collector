@@ -20,7 +20,14 @@ JOBS = int(os.environ.get('JOBS', '3'))
 # The Desktop PC's Chrome window on Sep 29, 2026: every capture meant for a deck is made at this size, scale 1.
 VIEWPORT = {'width': 1707, 'height': 1019}
 USER_AGENT = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
-              'Chrome/141.0.0.0 Safari/537.36')
+              'Chrome/{major}.0.0.0 Safari/537.36')
+
+
+def user_agent_for(browser_version):
+    """The desktop Chrome user agent at the headless browser's own major version, so the user agent and the browser's
+    client hints (Sec-CH-UA) name the same Chrome."""
+    major = (browser_version or '').split('.')[0] or '141'
+    return USER_AGENT.format(major=major)
 LOCALE = 'en-US'
 TIMEZONE = 'America/New_York'
 
@@ -37,16 +44,25 @@ PSI_ZOOM = 1.15
 # Elements hidden before every capture (references/04_capture.md)
 HIDE_BEFORE_CAPTURE = ['#chrome-extension-pull-out-tab-host', '#podium-bubble', 'iframe[id^="podium"]', 'iframe[src*="podium"]']
 
-# Platform markers the pre-flight looks for in the page (host names, script paths, generator tags). The VM build
-# extends this list from what it sees; a platform in platforms.json marked chrome_only goes straight to Chrome.
+# Platform markers the pre-flight looks for in the page (host names, script paths, generator tags), checked in this
+# order. They are the dealer census's verified patterns (site-scans-data/markers.json, 17,678 sites, Sep 28, 2026),
+# with Sincro's from the cobalt and sincrod hosts the census saw; bare words like "cdk", "di-" and "apollo" matched
+# too much. A platform in platforms.json marked chrome_only goes straight to Chrome.
 PLATFORM_MARKERS = {
-    'Dealer.com': ['dealer.com', 'ddc-', 'static.dealer.com'],
-    'DealerOn': ['dealeron', 'dlron.us', 'dealeron.com'],
-    'Dealer Inspire': ['dealerinspire', 'di-', 'dealerinspire.com'],
-    'Sincro': ['sincrodigital', 'sincro', 'cobalt', 'cdk'],
-    'DealerFire': ['dealerfire'],
-    'Dealer eProcess': ['dealereprocess'],
-    'Team Velocity': ['teamvelocity', 'apollo'],
+    'Dealer.com': ['pictures.dealer.com', 'static.dealer.com', 'images.dealer.com', 'content="ddc"', 'website by dealer.com'],
+    'DealerOn': ['cdn.dlron.us', '.dealeron.com/dealeron-', '.dealeron.com/personalization.js', 'dealeron.com/do-info', '/assets/logos/dealeron/'],
+    'Dealer Inspire': ['assets.dealerinspire.com', '.dealerinspire.com', 'carscommerce.inc', '/wp-content/plugins/dealer-inspire'],
+    'Sincro': ['cobaltnitra.com', 'cobaltgroup.com', 'wsassets.cobalt.com', 'sincrod.com', 'sincro.com', 'assets-cdk.com'],
+    'Team Velocity': ['secureoffersites.com/images/getlibraryimage', 'tvmimageservice.com', 'tvmwebsitecdn.com', 'teamvelocity'],
+    'Dealer eProcess': ['cdn.dealereprocess.org', 'dealereprocess.com', 'dealereprocess.org'],
+    'DealerFire': ['dealerfire.com'],
+    'Fox Dealer': ['foxdealer.com'],
+    'Overfuel': ['overfuel.com'],
+    'Dealer Alchemist': ['dealeralchemist.com'],
+    'Motive': ['ridemotive.com', 'motivehq.com'],
+    'Jazel': ['jazelc.com', 'jazel.com', 'jazel.net'],
+    'Remora': ['remorainc.com', 'remora.inc'],
+    'PixelMotion': ['pixelmotion.com', 'pixelmotiondemo.com'],
 }
 
 # The pop-up vendors the skill names, with the selector or signal that marks each one opening

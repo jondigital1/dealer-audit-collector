@@ -18,7 +18,12 @@ class Browser:
 
     def __enter__(self):
         self._pw = sync_playwright().start()
-        self.browser = self._pw.chromium.launch(headless=True)
+        # channel='chromium' is the full Chromium in its new headless mode. Playwright's default headless build is the
+        # stripped-down headless shell, which Dealer.com's Akamai edge answers with a 403 Access Denied page (seen on
+        # bayhyundai.com and butlerlexus.com, Sep 30, 2026); the full browser gets the normal page. No evasion beyond
+        # a normal browser: the user agent below is the browser's own version, on a desktop.
+        self.browser = self._pw.chromium.launch(headless=True, channel='chromium')
+        self.user_agent = config.user_agent_for(self.browser.version)
         return self
 
     def __exit__(self, *a):
@@ -26,7 +31,7 @@ class Browser:
         self._pw.stop()
 
     def context(self):
-        return self.browser.new_context(viewport=config.VIEWPORT, device_scale_factor=1, user_agent=config.USER_AGENT,
+        return self.browser.new_context(viewport=config.VIEWPORT, device_scale_factor=1, user_agent=self.user_agent,
                                         locale=config.LOCALE, timezone_id=config.TIMEZONE, ignore_https_errors=False)
 
 
