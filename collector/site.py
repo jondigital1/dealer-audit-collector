@@ -171,7 +171,7 @@ def menu_crawl(store, page, max_items=72):
         if store.over_budget():
             store.not_captured('menu crawl', 'store time budget reached; the rest of the menu is unopened')
             break
-        item = {'top': l['top'], 'label': l['label'], 'href_host': l['host'], 'path': l['path'], 'status': None, 'result': None,
+        item = {'top': l['top'], 'label': l['label'], 'href': l['href'], 'href_host': l['host'], 'path': l['path'], 'status': None, 'result': None,
                 'landed_host': None, 'landed_path': None, 'capture_menu': None, 'capture_dest': None}
         try:
             resp = captures.goto(page, l['href'], wait='domcontentloaded')
@@ -208,41 +208,51 @@ def menu_crawl(store, page, max_items=72):
             item['result'] = 'error'
             item['status'] = f'{type(e).__name__}'
         items.append(item)
-    # the menu hovered open for every item that is not ok
+    # the menu hovered open for every item that is not ok, boxed in red, shot with the mouse still on it
     captures.goto(page, home)
+    page.wait_for_timeout(800)
     for item in items:
         if item['result'] in (None, 'ok', 'error'):
             continue
         try:
-            label_re = re.compile(r'^\s*' + re.escape(item['top'] or item['label']) + r'\s*$')
-            top = page.locator('nav a, header a, [class*="nav"] a, [class*="menu"] a').filter(has_text=label_re).filter(visible=True)
-            if top.count() == 0:
-                # the item sits under an overflow entry (Dealer Inspire's "More", whose text reads "Show"): hover the
-                # nav's visible top-level items that have children, last first, until the item shows
-                overflow = page.locator('nav > ul > li, nav ul.nav > li, [class*="menu"] > ul > li').filter(visible=True)
-                for i in range(overflow.count() - 1, -1, -1):
-                    li = overflow.nth(i)
-                    cls = (li.get_attribute('class') or '')
-                    if not re.search(r'has-children|dropdown|overflow|more|parent', cls, re.I):
-                        continue
-                    try:
-                        li.hover(timeout=3000)
-                        page.wait_for_timeout(600)
-                    except Exception:
-                        continue
-                    top = page.locator('nav a, header a, [class*="nav"] a, [class*="menu"] a').filter(has_text=label_re).filter(visible=True)
-                    if top.count():
+            page.mouse.move(config.VIEWPORT['width'] - 1, config.VIEWPORT['height'] - 1)
+            page.wait_for_timeout(300)
+            geo = page.evaluate(snippets.MENU_GEOMETRY, [item['label'], item.get('href'), item['top']])
+            if not geo['item'] and not geo['top']:
+                raise RuntimeError('neither the item nor its top entry is in the menu')
+            hovered = None
+            if geo['top'] and geo['top']['visible']:
+                page.mouse.move(geo['top']['cx'], geo['top']['cy'])
+                hovered = 'top'
+            else:   # under an overflow entry (Dealer Inspire's "More"): hover the visible entries with children, last first
+                for ob in reversed(geo['overflow']):
+                    page.mouse.move(ob['cx'], ob['cy'])
+                    page.wait_for_timeout(600)
+                    geo = page.evaluate(snippets.MENU_GEOMETRY, [item['label'], item.get('href'), item['top']])
+                    if geo['item'] and geo['item']['visible']:
+                        hovered = 'overflow'
                         break
-            top = top.first
-            top.hover(timeout=8000)
+                    if geo['top'] and geo['top']['visible']:
+                        page.mouse.move(geo['top']['cx'], geo['top']['cy'])
+                        hovered = 'overflow then top'
+                        break
             page.wait_for_timeout(700)
-            page.evaluate("""(label) => { for (const a of document.querySelectorAll('nav a, header a, [class*="nav"] a')) if (a.innerText.trim() === label) { a.style.outline = '3px solid #D93025'; a.style.outlineOffset = '2px'; } }""", item['label'])
+            geo = page.evaluate(snippets.MENU_GEOMETRY, [item['label'], item.get('href'), item['top']])
+            if geo['item'] and geo['item']['visible'] and hovered != 'top':
+                pass   # the item is showing; the mouse stays where it opened the menu
+            page.evaluate(snippets.HIDE, config.HIDE_BEFORE_CAPTURE)
+            page.evaluate(snippets.MENU_OUTLINE, [item['label'], item.get('href')])
             name = f'menu_{slug(item["label"] or (item["top"] + " " + item["path"]))}.png'
-            captures.shot(store, page, name)
+            path = store.captures / name
+            page.screenshot(path=str(path), type='png')
+            store.record_capture(name, page.url, Image.open(path).size)
+            store.log(f'captured {name} (menu open by {hovered or "nothing"}; item visible: {bool(geo["item"] and geo["item"]["visible"])})')
             item['capture_menu'] = f'captures/{name}'
-            page.mouse.move(config.VIEWPORT['width'] - 1, 10)
+            if not (geo['item'] and geo['item']['visible']):
+                item['capture_menu_note'] = 'the item did not show in the open menu; the shot has the menu as it opened'
+            page.evaluate(snippets.MENU_OUTLINE, ['', None])
         except Exception as e:
-            store.not_captured(f'menu open on {item["label"]}', str(e))
+            store.not_captured(f'menu open on {item["label"] or item["path"]}', f'{type(e).__name__}: {str(e)[:160]}')
     r['menu'] = {'items_total': len(links), 'opened': len(items), 'items': items}
     store.check('menu', 'ok')
 

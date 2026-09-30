@@ -273,3 +273,22 @@ SPECIALS_CARDS = """() => {
 # special hours): its text, so holiday hours in it are on record even when the block never says "Special Hours"
 DEALERSHIP_INFO = """() => { const e = [...document.querySelectorAll('body *')].find(x => /^(Dealership|Dealer|Store) Info/i.test((x.innerText || '').trim().slice(0, 30)) && x.innerText.length < 2500 && x.getBoundingClientRect().width > 150);
   if (!e) return null; const r = e.getBoundingClientRect(); return { text: e.innerText.trim(), x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height }; }"""
+
+# Menu geometry for the hover shot: the item's anchor (by label, or by href when it has none), its top-level entry,
+# and the nav's visible top-level entries that have children (an overflow entry like "More"), each with its box
+MENU_GEOMETRY = """([label, href, top]) => {
+  const box = e => { const r = e.getBoundingClientRect(); return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width, h: r.height, visible: r.width > 0 && r.height > 0 && r.top >= 0 && r.top < innerHeight }; };
+  const anchors = [...document.querySelectorAll('nav a, header a, [class*="nav"] a, [class*="menu"] a')];
+  const clean = t => (t || '').trim().replace(/\\s+/g, ' ');
+  const pick = list => list.find(a => box(a).visible) || list[0] || null;
+  const items = anchors.filter(a => label ? clean(a.innerText) === label : (href && a.href === href));
+  const tops = anchors.filter(a => top && clean(a.innerText) === top);
+  const navs = [...document.querySelectorAll('nav > ul, nav ul.nav, [class*="menu"] > ul')];
+  const overflow = [];
+  for (const ul of navs) for (const li of ul.children) { if (li.tagName !== 'LI') continue; const b = box(li); if (!b.visible) continue; if (/has-children|dropdown|overflow|more|parent/i.test(li.className || '') || li.querySelector('ul')) overflow.push(b); }
+  return { item: items.length ? box(pick(items)) : null, top: tops.length ? box(pick(tops)) : null, overflow };
+}"""
+
+MENU_OUTLINE = """([label, href]) => { for (const a of document.querySelectorAll('a')) { a.style.outline = ''; a.style.outlineOffset = ''; }
+  if (!label && !href) return; for (const a of document.querySelectorAll('nav a, header a, [class*="nav"] a, [class*="menu"] a')) { const r = a.getBoundingClientRect(); if (r.width === 0) continue;
+    if ((label && a.innerText.trim() === label) || (!label && a.href === href)) { a.style.outline = '3px solid #D93025'; a.style.outlineOffset = '2px'; } } }"""
