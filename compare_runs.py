@@ -83,8 +83,6 @@ def rows(c, f):
         ('Bing', 'Rating source', g(c, 'bing', 'rating_source'), g(f, 'bing', 'rating_source'), 'text'),
         ('Bing', 'Website host', g(c, 'bing', 'website_host'), g(f, 'bing', 'website_host'), 'text'),
         ('Bing', 'UTM keys', g(c, 'bing', 'utm_keys'), g(f, 'bing', 'utm_keys'), 'exact'),
-        ('Conversion', 'VDP mobile score', g(c, 'pagespeed', 'vdp_mobile', 'api', 'score') or g(c, 'pagespeed', 'vdp_mobile', 'report', 'score'), g(f, 'pagespeed', 'vdp_mobile', 'score'), 'drift'),
-        ('Conversion', 'VDP mobile LCP s', g(c, 'conversion', 'vdp_lcp_s'), g(f, 'pagespeed', 'vdp_mobile', 'lcp_s'), 'lcp'),
         ('Conversion', 'CTAs in the stack', g(c, 'conversion', 'cta_count'), g(f, 'conversion', 'cta_count'), 'exact'),
         ('Conversion', 'Click to call', g(c, 'conversion', 'click_to_call'), g(f, 'conversion', 'click_to_call'), 'exact'),
         ('Conversion', 'Swipes to the price stack', g(c, 'conversion', 'swipes_to_price_stack'), g(f, 'conversion', 'swipes_to_price_stack'), 'exact'),

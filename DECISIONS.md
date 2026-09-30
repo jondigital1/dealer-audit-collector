@@ -16,6 +16,13 @@ and 2. They settle where the collector runs and how it talks to the audit; none 
 Cost rule (Jonathan, Sep 29, 9:10 PM): no paid APIs, ever. The collector runs on the free PageSpeed Insights API (or the
 report page) and nothing else; SpyFu and Google Business Profile are Chrome steps.
 
+Home page rule (Jonathan, Sep 30, 4:18 PM ET), on top of the cost rule: PageSpeed runs on the home page only. His words:
+"we do not need to determine page speed on any page outside of the homepage. it's all dealerships are graded on when it
+comes to page speed that is measured." So no PageSpeed on the VDP: the VDP's four phone screens come from the
+collector's own phone render (412 x 823, a mobile Chrome user agent), and a VDP that fails to load twice there is
+swapped for the next vehicle on the SRP. Home mobile and desktop stay as they are (the report page, the API as the
+fallback, the treemap, the pop-up LCP rerun rule); in a group, the group site's home page gets the same run.
+
 Standing rules that apply to everything the collector produces (Jonathan, Sep 29): no em or en dashes anywhere,
 code comments included, ranges as "X to Y"; the collector never decides what goes in a deck, it collects and flags;
 it never writes to the Dealer Audit Requests sheet or the SEO Audits folder in Phases 3 and 4; and it never submits a

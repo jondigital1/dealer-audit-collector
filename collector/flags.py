@@ -118,8 +118,6 @@ def apply(store):
     for c in cv.get('ctas') or []:
         if c.get('leaves_site') and not c.get('tel'):
             F('cta_offsite', 'Conversion Optimization SRP-VDP', c['text'], None, f'The {c["text"]} CTA sends shoppers off the site', cv.get('captures', []))
-    if cv.get('vdp_lcp_s') and cv['vdp_lcp_s'] > 2.5:
-        F('vdp_lcp', 'Conversion Optimization SRP-VDP', cv['vdp_lcp_s'], 2.5, f'On a phone, the VDP\'s main content takes {cv["vdp_lcp_s"]} s to load', cv.get('captures', []))
     if cv.get('popup_on_load'):
         F('vdp_popup', 'Conversion Optimization SRP-VDP', cv.get('mobile_layout', {}).get('popup_detail'), None, 'A pop-up opens over the SRP and VDP on load' if (r.get('popup') or {}).get('on_srp') else 'A pop-up opens over the VDP on load', cv.get('captures', []))
     if cv.get('promo_banner_top'):

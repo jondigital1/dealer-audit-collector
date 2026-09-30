@@ -1,4 +1,5 @@
-"""PageSpeed: the numbers by the PageSpeed Insights API, the pictures from the report page (SPEC.md section 3).
+"""PageSpeed on the home page only (Jonathan, Sep 30, 2026: "we do not need to determine page speed on any page outside of
+the homepage"): the numbers by the report page (or the API), the pictures from the report page (SPEC.md section 3).
 
 API: https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=&strategy=mobile|desktop&category=performance&key=
 The response's lighthouseResult holds the lab run (categories, audits, the full-page screenshot, the treemap data) and
@@ -459,13 +460,17 @@ def home(store, rp, url):
     store.save()
 
 
-def phone_screens(store, fps, scale=1.25, outline=(255, 45, 85), border=4, prefix='vdp_phone'):
-    """Cut the mobile full-page render (412 px wide) into 412 x 823 phone screens with the 4 px #FF2D55 outline, saved at
-    1.25 scale to match the decks so far (about 505 x 997 px each). Returns the file names."""
-    if not fps or not fps.get('data'):
+def phone_screens(store, fps=None, image_path=None, scale=1.25, outline=(255, 45, 85), border=4, prefix='vdp_phone'):
+    """Cut a phone-width full-page render (412 px wide: the collector's own, or a PageSpeed webp data URL) into 412 x 823
+    phone screens with the 4 px #FF2D55 outline, saved at 1.25 scale to match the decks so far (about 505 x 997 px
+    each). Returns the file names."""
+    if image_path:
+        im = Image.open(image_path).convert('RGB')
+    elif fps and fps.get('data'):
+        raw = base64.b64decode(fps['data'].split(',', 1)[1])
+        im = Image.open(io.BytesIO(raw)).convert('RGB')
+    else:
         return []
-    raw = base64.b64decode(fps['data'].split(',', 1)[1])
-    im = Image.open(io.BytesIO(raw)).convert('RGB')
     if im.size[0] != 412:
         im = im.resize((412, round(im.size[1] * 412 / im.size[0])))
     names = []

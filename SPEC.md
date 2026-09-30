@@ -42,7 +42,7 @@ The skill's Steps 1 to 17 (`references/02_steps.md`), with the collector's part 
 | 2 Google Business Profile | Nothing, in any phase (no Places API: Jonathan's cost rule) | The panel, departments, body shop and Service searches, cover photos: all of Step 2, in Chrome as today |
 | 3 Bing listing | bing.com/maps?q=[dealer name and street address]: the panel screenshot at about 700 px wide, every button's text, host and path (the skill's script), the website link's real URL from the bing.com/alink/link?url= wrapper with its query keys, the hours behind the "More hours" toggle, the rating and its source, the description present or not | Reading the lead photo, judging each button's landing page |
 | 4 Address, hours, phones | The site's address, sales, service and parts hours and every phone number from the header, footer, hours page, Dealership Info sidebar, tel: links and schema.org JSON-LD; the Bing address and hours; a screenshot of the site's hours block. In a group, the group site's store card for this store | Google's address and hours (Step 2); the comparison and the slide |
-| 5 Site speed | PageSpeed mobile and desktop on the home page: the numbers by the free PageSpeed Insights API (score, FCP, LCP, TBT, CLS, Speed Index, the LCP element's node label) and the gauge block screenshot (section 3 says how; the report page alone when no key is wanted) | Quoting the load time; the rerun call when the LCP is a pop-up's image (the collector reruns once on its own and keeps both runs) |
+| 5 Site speed | PageSpeed mobile and desktop on the home page, and on the home page only (Jonathan, Sep 30, 2026: "we do not need to determine page speed on any page outside of the homepage. it's all dealerships are graded on when it comes to page speed that is measured."): the report page's numbers first (score, FCP, LCP, TBT, CLS, Speed Index, the LCP element's node label) with the API as the fallback, and the gauge block screenshot (section 3 says how). In a group, the group site's home page gets the same run | Quoting the load time; the rerun call when the LCP is a pop-up's image (the collector reruns once on its own and keeps both runs) |
 | 6 Tag load | The count of scripts from googletagmanager.com in the same result's script-treemap-data, the list of their names, and the treemap screenshot | Nothing |
 | 7 Core Web Vitals | The field data (Chrome UX Report) for the URL: Passed, Failed or No Data, with LCP, INP and CLS and each one's category, mobile and desktop, and the field card screenshot | Naming the failing metric per side in the skill's words |
 | 8 Homepage pop-ups | A fresh context, the home page, polling every 100 ms for the vendor overlays the skill names (Gubagoo .gg-chat-wrapper, or the start time of its cdn.gubagoo.io/gb1/ avatar in resource timing; DealerOn #dealerOnCoupon; Wunderkind window.bouncex.campaigns with activation_delay; Podium's #podium-prompt iframe; dealerbluesky #dbs-dynamic-popup-overlay; Tecobi's LIVE SUPPORT bubble) and for any fixed element that appears after load and covers a third of the viewport; seconds from navigation start and from the load event; screenshots before and after; a second vendor recorded the same way; cookies and storage cleared and the page reloaded to catch a cookie-capped pop-up | Whether it counts (a survey modal on the second page view stays out) |
@@ -50,7 +50,7 @@ The skill's Steps 1 to 17 (`references/02_steps.md`), with the collector's part 
 | 10 Links, inventory, menu | The skill's vehicle-links script on the SRP (count, http:// count, one example); the "N new vehicles" count; every main-menu link (top item, label, href host and path), each one opened with a real navigation: HTTP status, final host and path, redirect to the home page, 404 page, off-site host, group or sister site host, third-party listing site; the menu hovered open with the item boxed in red and the landed page captured; the group site's new count when there is one | Which ones are findings and their wording; GM's parts and accessories links go in the notes |
 | 11 AI agent readiness | Nothing. Out since Sep 27; the collector skips PageSpeed's Agentic Browsing checks | Nothing |
 | 12 Organic search | Nothing (no SpyFu API: Jonathan's cost rule) | All of Step 12 in Chrome as today: the signed-in tab's same-origin data call for the monthly totals, the overview and Top Organic Competitors cards, the keyword and Kombat tables, the competitor choice, every verdict and line |
-| 13 Conversion, SRP and VDP | PageSpeed mobile on the VDP (numbers, gauge and the full-page screenshot); the full-page render cut into four 412 x 823 phone screens with the 4 px #FF2D55 outline; the VDP's price stack text in order with the biggest price marked; every CTA in the stack with its text, host and whether it leaves the site (the skill's VDP links script); click to call present; the swipe counts to the full price stack and the full CTA stack; whether the pop-up shows on load and on the SRP; the ComplyAuto panel showing on load; a promotion banner across the first screen; the vehicle photo's overlay text | Every judgment on the slide; the iframe check when the phone render is blank |
+| 13 Conversion, SRP and VDP | No PageSpeed on the VDP (Jonathan, Sep 30, 2026: the home page only). The collector's own phone render of the VDP (a fresh context at 412 x 823, device scale 1, a current mobile Chrome user agent, mobile and touch on; the load event plus the pop-up window), its full-page capture cut into four 412 x 823 phone screens with the 4 px #FF2D55 outline; the render's time in Eastern and the vehicle's title, stock and VIN under vdp_render; a VDP that fails to load twice in the phone context is swapped for the next vehicle on the SRP (vehicle_swapped); the VDP's price stack text in order with the biggest price marked; every CTA in the stack with its text, host and whether it leaves the site (the skill's VDP links script); click to call present; the swipe counts to the full price stack and the full CTA stack; whether the pop-up shows on load and on the SRP; the ComplyAuto panel showing on load; a promotion banner across the first screen; the vehicle photo's overlay text | Every judgment on the slide; the iframe check when the phone render is blank |
 | 14 Customer experience | Full-page screenshots, zoom 1.4, of the service specials, new vehicle specials, schedule service, trade-in and finance application pages, and of every page the Specials and Research menus open; the text of each specials page (NO RESULTS, No vehicles found, We are currently updating); each specials card's title, price text and image present; vendor banners' text; the research pages' model years against the SRP's model years | What looks careless, unfinished or wrong |
 | 15 Content quality | Full-page screenshots of the About Us, finance and lease pages; the first 300 characters of the About Us copy (to compare across sister sites); the home slider's slide alt texts from the source; text baked into images can only be seen, so the screenshots carry it | Stock photos, stale copy, template copy, the sister-site comparison |
 | 16 Empty spaces, special hours | The skill's blank-block script on every page it opens and on the blog (elements at least 150 px tall and 300 px wide with no text, no img, picture, video or iframe, computed background-image none), each candidate with its page, position and size and a full-page screenshot; the blog's post count or its "no posts" text; the Special Hours block text from the hours page and any Dealership Info sidebar, each holiday named | Whether a blank block is a missing photo or a spacer or a slider that hadn't loaded; whether a holiday is the next one |
@@ -90,8 +90,9 @@ returns numbers, not pictures, so the two come from two places and the collector
 5. **The LCP rule**: when the LCP element's label is a pop-up's image rather than the page's own content, rerun once,
    keep both runs, and mark which run has the page's main content as its LCP. Claude quotes that one and the notes
    say what the other measured.
-6. **A VDP that fails twice** ("Unable to resolve", DEADLINE_EXCEEDED, resource_exhausted after a 20 s wait and a
-   retry) is swapped for the next vehicle on the SRP, and results.json says so.
+6. **No PageSpeed on the VDP** (Jonathan, Sep 30, 2026): the VDP's phone screens come from the collector's own phone
+   render (section 2, step 13). A VDP that fails to load twice in that phone context is swapped for the next vehicle
+   on the SRP, and results.json says so (vehicle_swapped).
 
 ## 4. The captures
 
@@ -104,12 +105,11 @@ builders find them without a map. The full frame of every crop stays in `capture
 | `hours_site.png`, `address_site.png`, `address_bing.png` | The site's hours block; the site's and Bing's address lines |
 | `psi_home_mobile_gauges.png`, `psi_home_desktop_gauges.png` | The gauge blocks, page zoom 1.15 |
 | `psi_home_mobile_field.png`, `psi_home_desktop_field.png` | The field data cards, or the No Data line |
-| `psi_vdp_mobile_gauges.png`, `psi_vdp_mobile_field.png` | The VDP's |
 | `treemap_home.png` | The treemap |
 | `popup_before.png`, `popup_after.png`, `popup2_after.png` | The home page before the pop-up, with it open, and a second vendor's |
 | `menu_<item>.png`, `dest_<item>.png` | The menu hovered open with the item boxed in red; the page it opens (only for items whose result is not ok) |
 | `srp_header.png` | The SRP's "N new vehicles" header |
-| `vdp_phone_1.png` to `vdp_phone_4.png` | The four phone screens, 412 x 823 with the 4 px #FF2D55 outline, saved at 1.25 scale (about 505 x 997 px, the size the decks so far carry) |
+| `vdp_phone_1.png` to `vdp_phone_4.png` | The four phone screens from the collector's own phone render, 412 x 823 with the 4 px #FF2D55 outline, saved at 1.25 scale (about 505 x 997 px, the size the decks so far carry); the full render stays in `captures/raw/` |
 | `vdp_photo.png` | The first vehicle photo, for overlay text |
 | `specials_service.png`, `specials_new.png`, `specials_<slug>.png` | Full-page, zoom 1.4 |
 | `schedule_service.png`, `trade_in.png`, `finance_app.png` | Full-page, zoom 1.4 |
@@ -144,7 +144,7 @@ below are the additions and the ones whose meaning the collector fixes.
                  "site_name": "Bay Hyundai", "name_matches": true, "old_domain_result": null,
                  "platform": "Dealer.com", "notes": [] },
   "store", "city", "state", "domain", "platform", "captured_at",
-  "pages": { "home", "srp", "vdp", "vdp_vehicle", "srp_new_count", "srp_new_count_text" },
+  "pages": { "home", "srp", "vdp", "vdp_vehicle", "vdp_vehicle_detail", "vehicle_swapped", "srp_new_count", "srp_new_count_text" },
   "bing": { ...capture brief fields..., "status": "ok", "buttons": [ { "text", "host", "path", "final_host", "final_path" } ] },
   "address_hours": { ...capture brief fields (google_* left null in Phase 3)..., "phones_raw": [ { "where", "text" } ] },
   "phones": [ { "where", "dept", "number" } ],
@@ -152,7 +152,9 @@ below are the additions and the ones whose meaning the collector fixes.
                                   "report": { ...the same fields read from the report page..., "url": "https://pagespeed.web.dev/analysis/.../id" },
                                   "runs": [ ... every run, api and report, with its time and LCP element ... ],
                                   "lcp_is_popup": false, "captures": { "gauges", "field" } },
-                 "home_desktop": { ... }, "vdp_mobile": { ..., "vehicle_swapped": false } },
+                 "home_desktop": { ... } },   (the home page only; no vdp_mobile block since Sep 30, 2026)
+  "vdp_render": { "status": "ok", "rendered_at": "Sep 30, 2026, 5:12 PM ET", "url": ..., "vehicle": { "title", "stock", "vin" },
+                  "screens": [ "vdp_phone_1.png", ... ], "render_height_px": 8224, "attempts": 1, "vehicle_swapped": false },
   "gtm": { "count", "names": [ ... ], "capture": "captures/treemap_home.png" },
   "popup": { "vendor", "selector", "open_s", "load_s", "loads": [ { "open_s", "load_s", "at" } ], "second_vendor": {...},
              "on_srp": bool, "on_vdp_load": bool, "captures": [] },
@@ -176,7 +178,7 @@ below are the additions and the ones whose meaning the collector fixes.
   "flags": [ { "check": "site_speed_desktop", "section": "Site Speed", "value": 32, "threshold": 50,
                "line": "Desktop site speed is below 50", "evidence": [ "captures/psi_home_desktop_gauges.png" ] } ],
   "not_captured": [ { "what", "why" } ],
-  "checks": { "preflight": "ok", "bing": "ok", "pagespeed_home": "ok", "pagespeed_vdp": "failed", ... },
+  "checks": { "preflight": "ok", "bing": "ok", "pagespeed_home_mobile": "ok", "pagespeed_home_desktop": "ok", "vdp_render": "ok", ... },
   "captures": { "bing_panel.png": { "page": "https://www.bing.com/maps?q=...", "w": 700, "h": 1043, "at": "09:14:02 AM ET" }, ... }
 }
 ```

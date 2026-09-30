@@ -5,9 +5,9 @@
   python3 -m collector platform-test                                 Decision 7: which platforms load headless
   python3 -m collector handoff DIR                                   zip each finished store and send it
 
-A store's run, in the skill's order: pre-flight; set-up (the three pages); PageSpeed home mobile and desktop
-(numbers by API, pictures from the report page, the treemap); pop-up timing in a fresh context; SEO META fields;
-vehicle links; the menu crawl; contact info; Bing; the VDP on a phone; the pages (specials, service,
+A store's run, in the skill's order: pre-flight; set-up (the three pages); PageSpeed on the home page only, mobile
+and desktop (the report page, the API as fallback, the treemap); pop-up timing in a fresh context; SEO META fields;
+vehicle links; the menu crawl; contact info; Bing; the VDP on a phone (the collector's own render); the pages (specials, service,
 trade-in, finance, About Us, lease, hours, blog, research); flags; the contact sheet. results.json is written after
 every step. A failed step is recorded and the run moves on: the audit never waits on the collector."""
 import json
@@ -70,6 +70,31 @@ def collect_store(request, out_dir, plat):
     return store
 
 
+def group_home(spec, out_dir, plat):
+    """A group request: the group site's home page gets the home-page run too (PageSpeed mobile and desktop, the
+    treemap), into DIR/group/, the way SPEC.md's roll-up wants it. Nothing else runs on the group site here."""
+    req = {'store': spec.get('group') or 'group site', 'url': spec['group_site'], 'group': spec.get('group'), 'group_site': None}
+    store = Store(req, out_dir, folder='group')
+    store.log(f'group site home page: {spec["group_site"]}')
+    try:
+        with captures.Browser() as b:
+            ctx = b.context()
+            page = ctx.new_page()
+            pf = step(store, 'preflight', preflight.run, store, page, plat)
+            if pf and pf['loads'] and pf.get('platform_headless') != 'chrome_only':
+                store.results['pages']['home'] = page.url
+                rp = ctx.new_page()
+                step(store, 'pagespeed_home', pagespeed.home, store, rp, page.url)
+                rp.close()
+            ctx.close()
+    except Exception as e:
+        store.check('browser', 'failed', f'{type(e).__name__}: {str(e)[:300]}')
+    step(store, 'flags', flags.apply, store)
+    step(store, 'contact_sheet', captures.contact_sheet, store)
+    store.finish()
+    return store
+
+
 def main(argv):
     if len(argv) < 1:
         print(__doc__)
@@ -103,6 +128,8 @@ def main(argv):
             return 0
         with ThreadPoolExecutor(max_workers=max(1, jobs)) as ex:
             list(ex.map(lambda s: collect_store(s, out, plat), stores))
+        if 'stores' in spec and spec.get('group_site'):
+            group_home(spec, out, plat)
         print(handoff.run(out) if '--handoff' in argv else f'finished; run: python3 -m collector handoff {out}')
         return 0
     print(__doc__)

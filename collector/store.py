@@ -39,10 +39,10 @@ def no_dash(s):
 class Store:
     """One store's run: its request, its folder, its results, and the log."""
 
-    def __init__(self, request, out_dir):
+    def __init__(self, request, out_dir, folder=None):
         self.req = request
         self.domain = domain_of(request['url'])
-        self.dir = Path(out_dir) / self.domain
+        self.dir = Path(out_dir) / (folder or self.domain)
         self.captures = self.dir / 'captures'
         self.raw = self.captures / 'raw'
         for d in (self.dir, self.captures, self.raw):
@@ -55,9 +55,10 @@ class Store:
             'preflight': None,
             'store': request.get('store'), 'city': request.get('city'), 'state': request.get('state'),
             'domain': self.domain, 'platform': None, 'captured_at': now_et(),
-            'pages': {'home': request['url'], 'srp': None, 'vdp': None, 'vdp_vehicle': None, 'srp_new_count': None, 'srp_new_count_text': None},
+            'pages': {'home': request['url'], 'srp': None, 'vdp': None, 'vdp_vehicle': None, 'vehicle_swapped': False, 'srp_new_count': None, 'srp_new_count_text': None},
             'bing': None, 'address_hours': None, 'phones': [],
-            'pagespeed': {'home_mobile': None, 'home_desktop': None, 'vdp_mobile': None},
+            'pagespeed': {'home_mobile': None, 'home_desktop': None},   # the home page only (Jonathan, Sep 30, 2026)
+            'vdp_render': None,
             'gtm': None, 'popup': None, 'seo_meta': {}, 'links': None, 'menu': None, 'spyfu': None,
             'conversion': None, 'cx': [], 'content': [], 'about_us_first_para': None, 'slider': [],
             'empty_blocks': [], 'special_hours': None, 'blog': None, 'group_card': None,

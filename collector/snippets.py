@@ -297,3 +297,18 @@ MENU_GEOMETRY = """([label, href, top]) => {
 MENU_OUTLINE = """([label, href]) => { for (const a of document.querySelectorAll('a')) { a.style.outline = ''; a.style.outlineOffset = ''; }
   if (!label && !href) return; for (const a of document.querySelectorAll('nav a, header a, [class*="nav"] a, [class*="menu"] a')) { const r = a.getBoundingClientRect(); if (r.width === 0) continue;
     if ((label && a.innerText.trim() === label) || (!label && a.href === href)) { a.style.outline = '3px solid #D93025'; a.style.outlineOffset = '2px'; } } }"""
+
+# The next priced vehicle card on the SRP after a given VDP (the swap rule when a VDP will not render)
+NEXT_VEHICLE = """(skipHref) => {
+  const money = /\\$\\s?\\d[\\d,]{3,}/;
+  const sels = 'a[href*="/new/"], a[href*="/inventory/"], a[href*="/vehicle"], a[href*="/vdp"], a[href*="vin="], a[href*="/detail"]';
+  const skip = (skipHref || '').split('?')[0]; let passed = false; const seen = new Set();
+  for (const a of document.querySelectorAll(sels)) {
+    const h = a.href.split('?')[0]; if (/specials|promotions|research|inventory\\/index|new-inventory\\/index/i.test(a.getAttribute('href') || '')) continue;
+    if (h === skip) { passed = true; continue; }
+    if (!passed || seen.has(h)) continue; seen.add(h);
+    let c = a, hops = 0;
+    while (c && c !== document.body && hops < 8) { const t = (c.innerText || ''); if (money.test(t) && t.length < 2500) return { href: a.href, text: t.trim().replace(/\\s+/g, ' ').slice(0, 220) }; c = c.parentElement; hops++; }
+  }
+  return null;
+}"""
