@@ -128,7 +128,8 @@ def apply(store):
         F('click_to_call', 'Conversion Optimization SRP-VDP', False, True, 'Add click to call to improve mobile conversions', cv.get('captures', []))
     for cx in r.get('cx') or []:
         if cx.get('text_flags'):
-            what = re.sub(r'\bspecials?\b', '', (cx.get('label') or cx['page'].replace('specials_', '').replace('_', ' ')), flags=re.I).strip().title()
+            what = re.sub(r'\b(specials?|special offers?|offers?)\b', '', (cx.get('label') or cx['page'].replace('specials_', '').replace('_', ' ')), flags=re.I)
+            what = re.sub(r'\s+', ' ', what).strip().title()
             F('specials_empty', 'Customer Experience', cx['text_flags'][0], None, f'The {what + " " if what else ""}Specials page is empty', [cx.get('capture')])
         if cx.get('page') == 'research' and cx.get('model_years') and (r.get('pages') or {}).get('srp_model_years'):
             newest = max(int(y) for y in r['pages']['srp_model_years'])

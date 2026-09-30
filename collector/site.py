@@ -214,7 +214,16 @@ def menu_crawl(store, page, max_items=72):
         if item['result'] in (None, 'ok', 'error'):
             continue
         try:
-            top = page.locator('nav a, header a, [class*="nav"] a, [class*="menu"] a').filter(has_text=re.compile(r'^\s*' + re.escape(item['top'] or item['label']) + r'\s*$')).filter(visible=True).first
+            label_re = re.compile(r'^\s*' + re.escape(item['top'] or item['label']) + r'\s*$')
+            top = page.locator('nav a, header a, [class*="nav"] a, [class*="menu"] a').filter(has_text=label_re).filter(visible=True)
+            if top.count() == 0:
+                # the item sits under an overflow entry (Dealer Inspire's "More"): open that first
+                more = page.locator('nav a, nav button, nav span, header a, header button, [class*="menu"] a').filter(has_text=re.compile(r'^\s*(more|menu)\s*$', re.I)).filter(visible=True).first
+                if more.count():
+                    more.hover(timeout=5000)
+                    page.wait_for_timeout(600)
+                    top = page.locator('nav a, header a, [class*="nav"] a, [class*="menu"] a').filter(has_text=label_re).filter(visible=True)
+            top = top.first
             top.hover(timeout=8000)
             page.wait_for_timeout(700)
             page.evaluate("""(label) => { for (const a of document.querySelectorAll('nav a, header a, [class*="nav"] a')) if (a.innerText.trim() === label) { a.style.outline = '3px solid #D93025'; a.style.outlineOffset = '2px'; } }""", item['label'])
