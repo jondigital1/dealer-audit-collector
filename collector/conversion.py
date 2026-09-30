@@ -65,16 +65,27 @@ def phone_ctas(page, site_host, price_stack_y, price_stack_bottom, price_labels)
         except Exception:
             continue
     buttons.sort(key=lambda b: b['y'])
-    skip = re.compile(r'load more|photos?$|^\d+\s*/\s*\d+$|^ext\.?$|^int\.?$|track price|^save$|^share$|compare|window sticker|full specs|^details$|highlights|full review|collapse|expand|^next$|^prev', re.I)
-    labels = {l.lower() for l in price_labels if l}
+    skip = re.compile(r'load more|photos?$|^\d+\s*/\s*\d+$|^ext\.?$|^int\.?$|track price|^save$|^share$|compare|window sticker|full specs|^details$|highlights|full review|collapse|expand|^next$|^prev|^back$|^close$|^menu$|^\d+$', re.I)
+    labels = [l.lower()[:30] for l in price_labels if l]
     top = 150
     bottom = (price_stack_bottom or price_stack_y or 2000) + 900
     seen = set()
+    tels = set()
     stack = []
     for b in buttons:
-        if b['y'] < top or b['y'] > bottom or skip.search(b['text']) or b['text'].lower() in labels or re.search(r'\$\s?\d', b['text']):
+        t = b['text']
+        if b['y'] < top or b['y'] > bottom or skip.search(t) or re.search(r'\$\s?\d', t):
             continue
-        key = (b['text'].lower(), b['y'] // 12)
+        if any(t.lower().startswith(l) for l in labels):   # an offer accordion (its label runs past the 40 characters the stack kept)
+            continue
+        if re.search(r'\b(19|20)\d\d\b.*\b\d{1,3}$', t):   # a gallery thumbnail button: the vehicle's title plus its slide number
+            continue
+        if b['tel']:
+            num = re.sub(r'\D', '', b['href'])[-10:]
+            if num in tels:
+                continue
+            tels.add(num)
+        key = (t.lower(), b['y'] // 12)
         if key in seen:
             continue
         seen.add(key)
@@ -82,7 +93,7 @@ def phone_ctas(page, site_host, price_stack_y, price_stack_bottom, price_labels)
         leaves = bool(host) and site_host not in host and not b['tel']
         stack.append({'text': b['text'], 'host': host or site_host, 'href': b['href'], 'leaves_site': leaves, 'y_phone': b['y'], 'tel': b['tel'], 'target': b['target'],
                       'frame': b['frame'], 'screen': b['y'] // 823 + 1})
-    return stack, buttons
+    return stack[:14], buttons
 
 
 def phone_pass(store, browser, url, price_texts, cta_texts):
@@ -106,6 +117,11 @@ def phone_pass(store, browser, url, price_texts, cta_texts):
         after = page.evaluate(snippets.VDP_MOBILE, args)
         site_host = url.split('/')[2].replace('www.', '')
         cta_stack, all_buttons = phone_ctas(page, site_host, after['priceY'], after['priceBottom'], store.results.get('conversion', {}).get('_price_labels', []))
+        # a digital-retail iframe (Capital One through autodriven, Roadster, and the like) that stays 0 x 0 in the
+        # headless phone context never shows its buttons here; Natchez Nissan's did not size in 38 s (Sep 30, 2026)
+        dead = page.evaluate("""() => [...document.querySelectorAll('iframe')].filter(f => /autodriven|capitalone|digital-retail|roadster|carnow|drive\\.|gubagoo|modal|tekion|darwin|dealer-fx/i.test(f.src || '') && f.getBoundingClientRect().width < 10).map(f => (f.src || '').split('/')[2]).filter(Boolean)""")
+        if dead:
+            store.not_captured('VDP digital-retail buttons in the phone render', f'the {", ".join(sorted(set(dead)))} iframe stayed 0 x 0 in the headless phone context, so its buttons (payment, pre-qualification, trade value) are not in the CTA stack; Chrome confirms them')
         out = {'source': "the collector's own phone render (412 x 823, device scale 1, mobile Chrome user agent)", 'rendered_at': rendered_at,
                'popup_window_s': config.POPUP_POLL_MS // 1000, 'popup_hit': poll.get('hit'), 'popup_open_s': poll.get('popupSec'), 'load_s': poll.get('loadSec'),
                'screens': screens, 'render_height_px': None,

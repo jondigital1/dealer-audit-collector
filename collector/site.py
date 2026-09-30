@@ -462,7 +462,7 @@ def contact_info(store, page):
         # every schedule, so the shot carries all three
         clicked = page.evaluate(snippets.EXPAND_HOURS)
         if clicked:
-            page.wait_for_timeout(700)
+            page.wait_for_timeout(900)
         hb = page.evaluate(snippets.HOURS_UNION)
         if hb:
             captures.box_shot(store, page, {'x': hb['x'], 'y': hb['y'], 'w': hb['w'], 'h': hb['h']}, 'hours_site.png', pad=12)

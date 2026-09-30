@@ -19,8 +19,9 @@ SEO_META = """async () => {
   const im = all.filter(i => !inMap(i));
   const cnt = arr => ({ images: arr.length, noAlt: arr.filter(i => !(i.getAttribute('alt') || '').trim()).length, noTitle: arr.filter(i => !(i.getAttribute('title') || '').trim()).length });
   // tracking pixels (zero or one px, or an ad or analytics host) are not photos: the flag's ALT-or-TITLE choice leaves them out
-  const pixelHost = /adsrvr|bat\\.bing|facebook\\.com|doubleclick|googleadservices|google-analytics|googletagmanager|adroll|pixel|beacon|track|analytics|criteo|taboola|outbrain|quantserve|scorecardresearch|linkedin\\.com\\/px|snap\\.licdn|t\\.co\\/|1x1|spacer|blank\\.gif|transparent/i;
-  const isPixel = i => { const r = i.getBoundingClientRect(); const src = i.currentSrc || i.src || ''; return (i.naturalWidth <= 1 && i.naturalHeight <= 1 && i.complete) || (r.width <= 1 && r.height <= 1) || pixelHost.test(src); };
+  const pixelHost = /adsrvr\\.org|bat\\.bing\\.com|facebook\\.com\\/tr|doubleclick\\.net|googleadservices\\.com|google-analytics\\.com|adroll\\.com|criteo\\.com|taboola\\.com|outbrain\\.com|quantserve\\.com|scorecardresearch\\.com|linkedin\\.com\\/px|px\\.ads\\.linkedin|snap\\.licdn\\.com|t\\.co\\/i|analytics\\.tiktok|ct\\.pinterest|\\/1x1\\.|spacer\\.gif|blank\\.gif|clear\\.gif/i;
+  // a real pixel: a one-pixel box, a loaded one-pixel image, or a known ad or analytics host; an unloaded lazy image is not one
+  const isPixel = i => { const r = i.getBoundingClientRect(); const src = i.currentSrc || i.src || ''; return (r.width <= 1 && r.height <= 1 && (r.width > 0 || src)) || (src && i.complete && i.naturalWidth === 1 && i.naturalHeight === 1) || pixelHost.test(src); };
   const pixels = im.filter(isPixel); const noAltPixels = pixels.filter(i => !(i.getAttribute('alt') || '').trim()).length, noTitlePixels = pixels.filter(i => !(i.getAttribute('title') || '').trim()).length;
   // carousels clone their slides and swap lazy images as they rotate, so a read's counts depend on the carousel's state
   const inCarousel = im.filter(i => i.closest('[class*="slick"], [class*="carousel"], [class*="slider"], [class*="swiper"]'));
@@ -346,12 +347,19 @@ NEXT_VEHICLE = """(skipHref) => {
 # Expand collapsed hours panels (Service Hours, Parts Hours, See All Department Hours: read-only toggles), then give the
 # smallest block that holds every hours schedule, so the hours capture shows all three
 EXPAND_HOURS = """() => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const hoursy = e => /am|pm|closed/i.test(e.innerText || '') && /hours|monday|mon\\b|sunday|sun\\b/i.test(e.innerText || '');
+  // collapsed hours panels are shown by style, not by clicks: an accordion's script closes one panel as another opens
+  // and animates while the capture is measured (DealerOn's Sales, Service and Parts Hours, Sep 30, 2026)
+  let shown = 0;
+  for (const e of document.querySelectorAll('[class*="collapse"], [class*="panel-body"], [class*="accordion"] [class*="content"], [class*="accordion"] [class*="body"], [hidden]')) {
+    if (!hoursy(e) || vis(e) || e.innerText.length > 2500) continue;
+    e.classList.add('in', 'show'); e.classList.remove('collapse', 'collapsed'); e.style.setProperty('display', 'block', 'important'); e.style.setProperty('height', 'auto', 'important'); e.style.setProperty('max-height', 'none', 'important'); e.style.overflow = 'visible'; e.style.visibility = 'visible'; e.style.opacity = '1'; e.removeAttribute('hidden'); e.setAttribute('aria-expanded', 'true'); shown++; }
+  if (shown) return shown;
+  // no collapsed panel found: a toggle that reads as an hours header and says it is collapsed gets one click
   let clicked = 0;
-  for (const e of document.querySelectorAll('button, a, h2, h3, h4, h5, [role="button"], [role="tab"], [aria-expanded], [class*="accordion"] > *, [class*="collapse"] > *, [class*="toggle"]')) {
+  for (const e of document.querySelectorAll('button, a, h2, h3, h4, h5, [role="button"], [role="tab"], [aria-expanded], [class*="toggle"]')) {
     const t = (e.innerText || '').trim(); if (!vis(e) || t.length > 60) continue;
-    if (/^(service|parts|sales|showroom|dealership)?\\s*(department\\s*)?hours$|see all department hours|all department hours|service hours|parts hours/i.test(t)) {
-      const exp = e.getAttribute('aria-expanded'); const collapsed = exp === 'false' || /collapsed/.test(e.className || '') || (e.parentElement && /collapsed/.test(e.parentElement.className || ''));
-      if (exp === 'true') continue; try { e.click(); clicked++; } catch (x) {} } }
+    if (/see all department hours|all department hours|service hours|parts hours/i.test(t) && (e.getAttribute('aria-expanded') === 'false' || /collapsed/.test(e.className || ''))) { try { e.click(); clicked++; } catch (x) {} } }
   return clicked; }"""
 
 HOURS_UNION = """() => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 40 && r.height > 20; };

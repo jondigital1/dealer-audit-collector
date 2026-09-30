@@ -423,12 +423,15 @@ def home(store, rp, url):
         store.log(f'PageSpeed home report warned on {", ".join(warned)} ({(pics["numbers"][warned[0]]["run_warnings"] or [""])[0][:80]}); running the report once more')
         earlier = {ff: n for ff, n in pics['numbers'].items()}
         pics2 = report_pictures(store, rp, url, 'home')
+        extra = {}
         if pics2['numbers']:
             for ff in ('mobile', 'desktop'):
                 a, b = earlier.get(ff), pics2['numbers'].get(ff)
                 if b and (not b.get('run_warnings') or not a):
                     pics['numbers'][ff] = b
                     pics['captures'] = {**pics['captures'], **{k: v for k, v in pics2['captures'].items() if k.startswith(ff)}}
+                elif b:
+                    extra[ff] = b   # the rerun warned too: kept in runs[], the first run stays the quoted one
             pics['report_url'] = pics2.get('report_url') or pics['report_url']
     api = {}
     for ff in ('mobile', 'desktop'):
@@ -437,6 +440,9 @@ def home(store, rp, url):
         if earlier.get(ff) and earlier[ff] is not rec['report']:
             earlier[ff]['had_warning'] = bool(earlier[ff].get('run_warnings'))
             rec['runs'].append(earlier[ff])
+        if extra.get(ff):
+            extra[ff]['had_warning'] = True
+            rec['runs'].append(extra[ff])
         if rec['report'] is not None:
             rec['report']['had_warning'] = bool(rec['report'].get('run_warnings'))
         rec['report_url'] = (rec['report'] or {}).get('report_url') or pics.get('report_url')
