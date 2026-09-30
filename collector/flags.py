@@ -12,7 +12,7 @@ def norm_hours(text):
     if not text:
         return None
     t = text if isinstance(text, str) else ' | '.join(text)
-    t = t.lower().replace('–', '-').replace(' to ', '-')
+    t = t.lower().replace('\u2013', '-').replace('\u2014', '-').replace(' to ', '-')   # a scraped en or em dash becomes a hyphen
     rows = {}
     for m in re.finditer(r'\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*[:|]?\s*(closed|(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm))', t):
         day = m.group(1)
