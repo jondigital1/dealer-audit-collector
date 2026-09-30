@@ -150,7 +150,8 @@ def srp_links(store, page):
         return
     try:
         captures.goto(page, url)
-        page.evaluate(snippets.SCROLL_PASS)
+        # a slow pass: DealerOn's SRP adds its cards as the page scrolls (Natchez Nissan read 3 vehicles at a fast pass, 12 at this one)
+        page.evaluate("""async () => { const h = document.body.scrollHeight; for (let y = 0; y < h; y += 400) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 300)); } await new Promise(r => setTimeout(r, 2500)); window.scrollTo(0, 0); }""")
         l = page.evaluate(snippets.SRP_LINKS)
         store.results['links'] = {'srp_vehicle_links': l['links'], 'srp_vehicle_links_unique': l['unique'], 'srp_http_links': l['http'],
                                   'example_http_link': l['example'] or None, 'selector': l['selector'], 'skill_selector_links': l['skill_selector_links'],

@@ -62,6 +62,7 @@ MENU_LINKS = """() => {
     if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:') || href === '?' || href === '/?' || href.startsWith('sms:')) continue;
     let u; try { u = new URL(a.href); } catch (e) { continue; }
     if (/google\\.com\\/maps|maps\\.google|maps\\.apple|bing\\.com\\/maps|goo\\.gl\\/maps/i.test(a.href)) continue;   // the header's map link is not a menu item
+    if (/facebook\\.com|instagram\\.com|twitter\\.com|x\\.com\\/|youtube\\.com|tiktok\\.com|linkedin\\.com|yelp\\.com|pinterest\\.com/i.test(a.href)) continue;   // nor are the social icons
     const top = a.closest('li'); const topItem = top && top.parentElement && top.parentElement.closest('li');
     const topLabel = topItem ? (topItem.querySelector(':scope > a, :scope > span, :scope > button') || topItem).innerText.trim().split('\\n')[0].slice(0, 60) : '';
     // the label: the visible text, else the anchor's own text content (a menu item hidden behind an overflow entry
@@ -187,7 +188,8 @@ VDP_MOBILE = """({ priceTexts, ctaTexts, popupSelectors }) => {
   const ctaY = firstY(ctaTexts, 'a, button, [role="button"]');
   const ctaYs = ctaTexts.map(t => firstY([t], 'a, button, [role="button"]')).filter(y => y !== null);
   const priceYs = priceTexts.map(t => firstY([t], 'span, div, dd, dt, td, p, strong, b, li')).filter(y => y !== null);
-  const fixed = [...document.querySelectorAll('body *')].filter(e => { const cs = getComputedStyle(e); if (cs.position !== 'fixed' || !vis(e)) return false; const r = e.getBoundingClientRect(); return r.width * r.height > W * H / 3 && clean(e.innerText).length > 0; })
+  const fixed = [...document.querySelectorAll('body *')].filter(e => { const cs = getComputedStyle(e); if (cs.position !== 'fixed' || !vis(e) || cs.opacity === '0') return false; if (/\\bcollapse\\b/.test(e.className || '') && !/\\b(show|in|open)\\b/.test(e.className || '')) return false;
+      const r = e.getBoundingClientRect(); const ix = Math.max(0, Math.min(r.right, W) - Math.max(r.left, 0)), iy = Math.max(0, Math.min(r.bottom, H) - Math.max(r.top, 0)); return ix * iy > W * H / 3 && clean(e.innerText).length > 0; })
     .map(e => ({ id: e.id, cls: (e.className || '').toString().slice(0, 60), text: clean(e.innerText).slice(0, 120), h: Math.round(e.getBoundingClientRect().height) }));
   const vendor = popupSelectors.map(s => { try { const e = document.querySelector(s); return e && vis(e) ? { selector: s, text: clean(e.innerText).slice(0, 100) } : null; } catch (x) { return null; } }).filter(Boolean);
   const comply = [...document.querySelectorAll('body *')].find(e => vis(e) && /Your Privacy/i.test(e.innerText || '') && /ComplyAuto/i.test(e.innerText || '') && e.getBoundingClientRect().height > 150 && e.innerText.length < 1500);
@@ -216,8 +218,12 @@ CLEAR_STORAGE = """() => {
 # viewport. Returns seconds from navigation start and the load event's time.
 POPUP_POLL = """async ({ selectors, maxMs }) => {
   const start = performance.now();
-  const big = () => [...document.querySelectorAll('body *')].find(e => { const cs = getComputedStyle(e); if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') return false;
-    const r = e.getBoundingClientRect(); return r.width * r.height > innerWidth * innerHeight / 3 && e.innerText && e.innerText.trim().length > 0; });
+  // a fixed element that covers a third of the viewport and is actually on screen (a collapsed off-canvas menu drawer
+  // is fixed and tall but sits outside the frame: Natchez Nissan's vertical-navbar-collapse, Sep 30, 2026)
+  const big = () => [...document.querySelectorAll('body *')].find(e => { const cs = getComputedStyle(e); if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+    if (/\\bcollapse\\b/.test(e.className || '') && !/\\b(show|in|open)\\b/.test(e.className || '')) return false;
+    const r = e.getBoundingClientRect(); const ix = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)), iy = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+    return ix * iy > innerWidth * innerHeight / 3 && e.innerText && e.innerText.trim().length > 0; });
   let hit = null;
   await new Promise(res => { const iv = setInterval(() => {
     // a vendor element counts once it is a pop-up, not a launcher icon: at least 150 x 150 or carrying text (Gubagoo's
