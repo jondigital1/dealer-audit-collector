@@ -287,7 +287,7 @@ def open_report(store, page, url, which, report_url=None):
     raise last
 
 
-def report_pictures(store, page, url, which, report_url=None):
+def report_pictures(store, page, url, which, report_url=None, sides=('mobile', 'desktop')):
     """Open the report page headless (or a saved report by its URL), wait for it, and for mobile then desktop read the
     page's own Lighthouse result and the field card, and capture the gauge block and the field card at page zoom 1.15
     with the mouse parked off the report. Any failure is recorded and left to Chrome; the audit never waits."""
@@ -299,7 +299,7 @@ def report_pictures(store, page, url, which, report_url=None):
         store.log(f'PageSpeed report for {which} rendered after {waited} s: {page.url}')
         page.wait_for_timeout(2500)
         page.evaluate(HIDE_COOKIE_BAR)
-        for ff in ('mobile', 'desktop'):
+        for ff in sides:
             try:
                 if ff == 'desktop':
                     page.click(TAB[ff])

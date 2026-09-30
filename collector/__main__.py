@@ -43,7 +43,7 @@ def collect_store(request, out_dir, plat):
         site.contact_info(store, page)
         bing.listing(store, page)
         spyfu.organic(store)
-        conversion.vdp(store, page, rp)
+        conversion.vdp(store, page, rp, b)
         site.menu_crawl(store, page)
         site.pages(store, page)
         rp.close()

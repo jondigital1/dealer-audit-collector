@@ -9,6 +9,9 @@ from .store import domain_of
 
 NEW_SRP_PATHS = ['/new-inventory/index.htm', '/new-inventory/', '/new-vehicles/', '/inventory/new/', '/new/', '/searchnew.aspx', '/new-inventory']
 NOT_FOUND = re.compile(r'\b404\b|page not found|not found|no longer available', re.I)
+# a page that opens but has nothing on it (the fixture's Used body-style pages read 0 Vehicles; Testimonials and News
+# read "Sorry, no ... available at this time"); the words are recorded and Claude judges the page from its capture
+EMPTY_PAGE = re.compile(r'\b0 (vehicles?|results?|matches)\b|check back soon|no (vehicles|results|posts|news|testimonials|specials|offers)\b[^\n]{0,60}|sorry, no [^\n]{0,80}(available|found|matched)|currently no [^\n]{0,40}|we are currently updating', re.I)
 SPECIALS_EMPTY = re.compile(r'NO RESULTS|No vehicles found|We are currently updating|no specials|currently no', re.I)
 THIRD_PARTY = ('commercialtrucktrader.com', 'cars.com', 'autotrader.com', 'carfax.com', 'expressoil.com')
 
@@ -17,23 +20,57 @@ def slug(s):
     return re.sub(r'[^a-z0-9]+', '_', s.lower()).strip('_')[:40] or 'item'
 
 
+def pick_new_srp(links):
+    """The new inventory SRP from the main menu: the New menu's inventory item first (New Vehicles, New Inventory,
+    View All New, or any item whose path names new inventory), then a top-level New link only when its path says new
+    (Bay Hyundai's top New link opens /all-inventory/, new and used together)."""
+    def is_new_path(p):
+        return bool(re.search(r'new-inventory|new-vehicles|inventory/new|/new/?$|searchnew|newinventory', p, re.I)) and 'special' not in p.lower()
+    cands = [l for l in links if is_new_path(l['path']) and not re.search(r'specials|offers|featured|hybrid|electric|sedan|suv|truck|research', l['path'] + ' ' + l['label'], re.I)]
+    for pat in (r'^(new vehicles|new inventory|view all new|all new|shop all new|shop new|new cars)', r'^new\b'):
+        hit = next((l for l in cands if re.search(pat, l['label'], re.I)), None)
+        if hit:
+            return hit
+    return cands[0] if cands else None
+
+
+# The first vehicle card on the SRP with a real price: the nearest ancestor of a vehicle link whose text carries a
+# dollar figure (DDC wraps the link in a media div with no price, so the anchor's closest card is not enough)
+FIRST_VEHICLE = """() => {
+  const money = /\\$\\s?\\d[\\d,]{3,}/;
+  const sels = 'a[href*="/new/"], a[href*="/inventory/"], a[href*="/vehicle"], a[href*="/vdp"], a[href*="vin="], a[href*="/detail"]';
+  for (const a of document.querySelectorAll(sels)) {
+    if (/specials|promotions|research|inventory\\/index|new-inventory\\/index/i.test(a.getAttribute('href') || '')) continue;
+    let c = a, hops = 0;
+    while (c && c !== document.body && hops < 8) { const t = (c.innerText || ''); if (money.test(t) && t.length < 2500) return { href: a.href, text: t.trim().replace(/\\s+/g, ' ').slice(0, 220), tag: c.tagName, cls: (c.className || '').toString().slice(0, 60) }; c = c.parentElement; hops++; }
+  }
+  return null;
+}"""
+
+SRP_COUNT = """() => {
+  const el = document.querySelector('.vehicle-count, [class*="vehicle-count"], [class*="results-count"], [class*="result-count"], [class*="inventory-count"], [class*="srp-count"], [class*="total-results"], [class*="matches"]');
+  return { el: el ? el.innerText.trim().slice(0, 80) : null, body: document.body.innerText.slice(0, 6000) };
+}"""
+
+
 def setup_pages(store, page):
     """Step 1: the home page, the new inventory SRP and the first in-stock new VDP with a real price."""
     r = store.results
     home = r['pages']['home']
-    resp = captures.goto(page, home)
-    r['preflight'] = r['preflight'] or {}
+    captures.goto(page, home)
     r['pages']['home'] = page.url
-    # the SRP: the New menu item first, then the usual paths
     links = page.evaluate(snippets.MENU_LINKS)
-    new_item = next((l for l in links if re.search(r'^(new|view new|new inventory|new vehicles|shop new)', l['label'], re.I) and 'specials' not in l['path']), None)
+    new_item = pick_new_srp(links)
     srp = new_item['href'] if new_item else None
+    if srp:
+        r['pages']['srp_from'] = f'main menu: {new_item["top"] + " > " if new_item["top"] else ""}{new_item["label"]}'
     if not srp:
         for p in NEW_SRP_PATHS:
             try:
                 rr = captures.goto(page, urljoin(page.url, p))
                 if rr and rr.status == 200 and not NOT_FOUND.search(page.title()):
                     srp = page.url
+                    r['pages']['srp_from'] = f'usual path {p}'
                     break
             except Exception:
                 continue
@@ -41,25 +78,29 @@ def setup_pages(store, page):
         store.check('setup_srp', 'failed', 'could not find the new inventory SRP; give the URL in the request')
         return
     captures.goto(page, srp)
+    page.wait_for_timeout(1500)
     r['pages']['srp'] = page.url
-    txt = page.evaluate('() => document.body.innerText')
-    m = re.search(r'(\d[\d,]*)\s+(new\s+)?(vehicles?|results?|matches?|cars?)', txt, re.I)
+    c = page.evaluate(SRP_COUNT)
+    m = None
+    if c['el']:
+        m = re.search(r'(\d[\d,]*)\s*(new\s+)?(vehicles?|results?|matches?|cars?|listings?)', c['el'], re.I)
+    if not m:
+        m = re.search(r'(\d[\d,]*)\s+(new\s+)?(vehicles?|results?|matches?|cars?|listings?)', c['body'], re.I)
     if m:
         r['pages']['srp_new_count'] = int(m.group(1).replace(',', ''))
-        r['pages']['srp_new_count_text'] = m.group(0)
+        r['pages']['srp_new_count_text'] = m.group(0) + (f' (count element: {c["el"]})' if c['el'] and c['el'] != m.group(0) else '')
     try:
-        captures.element_shot(store, page, 'h1, .srp-header, [class*="results-count"], [class*="inventory-count"]', 'srp_header.png', pad=20)
+        captures.union_shot(store, page, ['h1', '.vehicle-count, [class*="vehicle-count"], [class*="results-count"], [class*="result-count"], [class*="inventory-count"], [class*="srp-count"]'],
+                            'srp_header.png', pad=20, zoom=config.DEALER_ZOOM)
     except Exception as e:
         store.not_captured('srp_header.png', str(e))
-    # the first vehicle card with a price
-    vdp = page.evaluate("""() => { const money = /\\$\\s?\\d[\\d,]{3,}/; for (const a of document.querySelectorAll('a[href*="/inventory/"], a[href*="/new/"], a[href*="/vehicle"]')) {
-        const card = a.closest('li, article, [class*="card"], [class*="vehicle"]') || a; if (money.test(card.innerText || '')) return { href: a.href, text: (card.innerText || '').trim().slice(0, 160) }; } return null; }""")
+    vdp = page.evaluate(FIRST_VEHICLE)
     if not vdp:
         store.check('setup_vdp', 'failed', 'no vehicle card with a price on the SRP')
         return
     captures.goto(page, vdp['href'])
-    r['pages']['vdp'] = page.url
-    r['pages']['vdp_vehicle'] = re.sub(r'\s+', ' ', vdp['text'])[:120]
+    r['pages']['vdp'] = page.url.split('?')[0] if 'priorityType' in page.url else page.url
+    r['pages']['vdp_vehicle'] = vdp['text'][:160]
     store.check('setup', 'ok')
 
 
@@ -72,9 +113,16 @@ def seo_meta(store, page):
         try:
             captures.goto(page, url)
             m = page.evaluate(snippets.SEO_META)
-            rec = {'title': m['title'], 'title_len': m['titleLen'], 'meta': m['meta'], 'meta_len': m['metaLen'], 'h': m['h'], 'h1_visible': m['h1Visible']}
+            rec = {'title': m['title'], 'title_len': m['titleLen'], 'meta': m['meta'], 'meta_len': m['metaLen'], 'h': m['h'], 'h1_text': m['h1All'], 'h1_visible': m['h1Visible']}
             if key == 'home':
-                rec.update({'images': m['images'], 'no_alt': m['noAlt'], 'no_title': m['noTitle']})
+                rec.update({'images': m['images'], 'no_alt': m['noAlt'], 'no_title': m['noTitle'], 'read_at': store.results['captured_at'],
+                            'images_note': 'the page\'s own images after a stepwise scroll to the bottom' + (f'; a map widget adds {m["mapImages"]} more, counted under images_with_map' if m.get('withMap') else '')})
+                if m.get('withMap'):
+                    rec['images_with_map'] = {'images': m['withMap']['images'], 'no_alt': m['withMap']['noAlt'], 'no_title': m['withMap']['noTitle']}
+                if m.get('carousel', {}).get('images'):
+                    c = m['carousel']
+                    rec['images_in_carousels'] = {'images': c['images'], 'no_alt': c['noAlt'], 'cloned_slides': c['cloned'], 'cloned_no_alt': c['clonedNoAlt'],
+                                                  'note': 'carousels clone slides and swap lazy images as they rotate, so a read\'s counts depend on the carousel\'s state at read time'}
             store.results['seo_meta'][key] = rec
         except Exception as e:
             store.check(f'seo_meta_{key}', 'failed', str(e))
@@ -90,7 +138,9 @@ def srp_links(store, page):
         captures.goto(page, url)
         page.evaluate(snippets.SCROLL_PASS)
         l = page.evaluate(snippets.SRP_LINKS)
-        store.results['links'] = {'srp_vehicle_links': l['links'], 'srp_http_links': l['http'], 'example_http_link': l['example']}
+        store.results['links'] = {'srp_vehicle_links': l['links'], 'srp_vehicle_links_unique': l['unique'], 'srp_http_links': l['http'],
+                                  'example_http_link': l['example'] or None, 'selector': l['selector'], 'skill_selector_links': l['skill_selector_links'],
+                                  'srp_is_https': url.startswith('https://'), 'read_at': store.results['captured_at']}
         store.check('srp_links', 'ok')
     except Exception as e:
         store.check('srp_links', 'failed', str(e))
@@ -121,12 +171,17 @@ def menu_crawl(store, page, max_items=72):
             item['landed_host'] = landed.netloc
             item['landed_path'] = landed.path
             lh = domain_of(page.url)
+            body = page.evaluate('() => (document.body.innerText || "").slice(0, 20000)') if lh == dealer else ''
             if (resp and resp.status == 404) or NOT_FOUND.search(page.title() or ''):
                 item['result'] = '404'
             elif lh == dealer and landed.path in ('', '/') and l['path'] not in ('', '/'):
                 item['result'] = 'home_redirect'
+            elif lh == dealer and EMPTY_PAGE.search(body) and not re.search(r'inventory/index|all-inventory', landed.path):
+                item['result'] = 'empty'
+                item['empty_text'] = EMPTY_PAGE.search(body).group(0).strip()
             elif lh == dealer:
                 item['result'] = 'ok'
+                item['title'] = (page.title() or '')[:120]
             elif group_host and lh == group_host:
                 item['result'] = 'group_site'
             elif lh in sisters:
@@ -146,13 +201,13 @@ def menu_crawl(store, page, max_items=72):
     # the menu hovered open for every item that is not ok
     captures.goto(page, home)
     for item in items:
-        if item['result'] in (None, 'ok', 'error') or not item['top']:
+        if item['result'] in (None, 'ok', 'error'):
             continue
         try:
-            top = page.get_by_text(item['top'], exact=False).first
+            top = page.locator('nav a, header a, [class*="nav"] a').filter(has_text=re.compile(r'^\s*' + re.escape(item['top'] or item['label']) + r'\s*$')).first
             top.hover()
             page.wait_for_timeout(700)
-            page.evaluate("""(label) => { for (const a of document.querySelectorAll('nav a, header a')) if (a.innerText.trim() === label) { a.style.outline = '3px solid #D93025'; a.style.outlineOffset = '2px'; } }""", item['label'])
+            page.evaluate("""(label) => { for (const a of document.querySelectorAll('nav a, header a, [class*="nav"] a')) if (a.innerText.trim() === label) { a.style.outline = '3px solid #D93025'; a.style.outlineOffset = '2px'; } }""", item['label'])
             name = f'menu_{slug(item["label"])}.png'
             captures.shot(store, page, name)
             item['capture_menu'] = f'captures/{name}'
@@ -163,41 +218,144 @@ def menu_crawl(store, page, max_items=72):
     store.check('menu', 'ok')
 
 
+DEPT_WORDS = {'sales': 'Sales', 'service': 'Service', 'parts': 'Parts', 'collision': 'Collision', 'body': 'Body Shop', 'finance': 'Finance', 'main': 'Main'}
+
+
+def dept_of(text):
+    t = (text or '').lower()
+    for k, v in DEPT_WORDS.items():
+        if k in t:
+            return v
+    return None
+
+
+def fmt_phone(raw):
+    digits = re.sub(r'\D', '', raw or '')
+    if len(digits) == 11 and digits.startswith('1'):
+        digits = digits[1:]
+    return f'({digits[:3]}) {digits[3:6]}-{digits[6:]}' if len(digits) == 10 else None
+
+
+def hours_text(spec):
+    """An openingHoursSpecification list as one line per day group: 'Mon to Fri 7:30am to 6:00pm; Sat ...'."""
+    if isinstance(spec, str):
+        return spec
+    if not isinstance(spec, list):
+        return None
+    out = []
+    for h in spec:
+        if not isinstance(h, dict):
+            continue
+        days = h.get('dayOfWeek') or []
+        days = [days] if isinstance(days, str) else days
+        days = [str(d).split('/')[-1][:3] for d in days]
+        span = f'{days[0]} to {days[-1]}' if len(days) > 2 else ' and '.join(days) if days else ''
+        if h.get('opens') and h.get('closes'):
+            out.append(f'{span} {h["opens"]} to {h["closes"]}')
+        else:
+            out.append(f'{span} closed')
+    return '; '.join(out) or None
+
+
+def walk_ld(obj):
+    """Every dict in a JSON-LD document, departments and graphs included."""
+    stack = [obj]
+    while stack:
+        x = stack.pop()
+        if isinstance(x, dict):
+            yield x
+            for k in ('@graph', 'department', 'subOrganization', 'parentOrganization', 'itemListElement', 'location'):
+                v = x.get(k)
+                if isinstance(v, (list, dict)):
+                    stack.append(v)
+        elif isinstance(x, list):
+            stack.extend(x)
+
+
 def contact_info(store, page):
-    """Step 4: the site's address, hours and phones from the header, footer, hours blocks, tel: links and JSON-LD."""
-    captures.goto(page, store.results['pages']['home'])
+    """Step 4: the site's address, hours and phones from the header, footer, hours blocks, tel: links and JSON-LD
+    (the whole graph: Dealer.com puts the store as AutomotiveBusiness with AutoDealer, AutoRepair and AutoPartsStore
+    departments, each with its own phone and hours)."""
+    r = store.results
+    captures.goto(page, r['pages']['home'])
+    page.wait_for_timeout(1000)
     c = page.evaluate(snippets.CONTACT_TEXT)
-    phones = []
+    at = store.results['captured_at']
+    phones, seen = [], set()
+
+    def add_phone(where, dept, raw):
+        num = fmt_phone(raw)
+        if num and (num, dept) not in seen:
+            seen.add((num, dept))
+            phones.append({'where': where, 'dept': dept, 'number': num})
     for t in c['tel']:
-        digits = re.sub(r'\D', '', t['number'])[-10:]
-        if len(digits) == 10:
-            phones.append({'where': 'tel link', 'dept': t['text'][:40], 'number': f'({digits[:3]}) {digits[3:6]}-{digits[6:]}'})
-    ld_dealer = None
-    for obj in c['ld']:
-        for o in (obj if isinstance(obj, list) else [obj]):
-            if isinstance(o, dict) and str(o.get('@type', '')).lower().endswith(('dealer', 'autodealer', 'localbusiness', 'organization')):
-                ld_dealer = o
-                break
+        add_phone('site header and footer (tel links)', dept_of(t['text']) or t['text'][:30] or 'unlabeled', t['number'])
+    # schema.org: the business and its departments
+    schema = {'business': None, 'departments': []}
     addr = None
-    if ld_dealer and isinstance(ld_dealer.get('address'), dict):
-        a = ld_dealer['address']
-        addr = ' '.join(str(a.get(k, '')) for k in ('streetAddress', 'addressLocality', 'addressRegion', 'postalCode')).strip()
+    for o in [x for ld in c['ld'] for x in walk_ld(ld)]:
+        typ = str(o.get('@type', ''))
+        if not re.search(r'AutomotiveBusiness|AutoDealer|AutoRepair|AutoPartsStore|AutoBodyShop|LocalBusiness|Organization|Dealer|Store', typ):
+            continue
+        a = o.get('address')
+        a_txt = None
+        if isinstance(a, dict):
+            parts = [str(a.get(k, '')).strip() for k in ('streetAddress', 'addressLocality', 'addressRegion', 'postalCode')]
+            a_txt = re.sub(r'\s+', ' ', f'{parts[0]}, {parts[1]}, {parts[2]} {parts[3]}').strip(' ,')
+        elif isinstance(a, str):
+            a_txt = a
+        rec = {'type': typ, 'name': o.get('name'), 'address': a_txt, 'telephone': o.get('telephone'),
+               'hours': hours_text(o.get('openingHoursSpecification') or o.get('openingHours'))}
+        if re.search(r'AutoDealer|AutoRepair|AutoPartsStore|AutoBodyShop', typ) and o.get('name') and dept_of(o.get('name')):
+            schema['departments'].append(rec)
+            add_phone(f'home page schema ({typ} {o.get("name")})', dept_of(o.get('name')), o.get('telephone'))
+        elif schema['business'] is None or 'AutomotiveBusiness' in typ:
+            schema['business'] = rec
+            add_phone(f'home page schema ({typ})', dept_of(o.get('name')) or 'Main', o.get('telephone'))
+        addr = addr or a_txt
+    addr_src = 'schema.org' if addr else None
+    if not addr:
+        for blob, src in ((c['header'], 'site header'), (c['footer'], 'site footer')):
+            m = re.search(r'\d+\s[^\n]{3,60}?\s*\n?\s*[A-Z][A-Za-z .]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?', '\n'.join(blob))
+            if m:
+                addr, addr_src = re.sub(r'\s+', ' ', m.group(0)).strip(), src
+                break
+    hours = {'sales': {'site': None, 'google': None, 'bing': None, 'group_card': None}, 'service': {'site': None, 'google': None, 'bing': None, 'group_card': None},
+             'parts': {'site': None, 'google': None, 'bing': None, 'group_card': None}}
+    for d in schema['departments']:
+        key = (dept_of(d['name']) or '').lower()
+        if key in hours and d['hours']:
+            hours[key]['site'] = d['hours'] + ' (schema)'
+    if schema['business'] and schema['business']['hours'] and not hours['sales']['site']:
+        hours['sales']['site'] = schema['business']['hours'] + ' (schema)'
+    blocks = []
+    for b in c['hoursBlocks']:
+        label = dept_of(b.get('heading') or '') or dept_of(b['text'][:60]) or ('Sales' if not blocks else None)
+        blocks.append({'where': b['where'], 'label_from': b.get('heading'), 'dept': label, 'text': b['text']})
+        if label and label.lower() in hours and not hours[label.lower()].get('site_block'):
+            hours[label.lower()]['site_block'] = re.sub(r'\s+', ' ', b['text'])[:300]
     store.results['address_hours'] = {
-        'site_address': addr, 'site_address_source': 'schema.org' if addr else None, 'google_address': None, 'bing_address': None, 'group_card_address': None,
-        'site_name_schema': ld_dealer.get('name') if ld_dealer else None,
-        'schema_hours': ld_dealer.get('openingHours') or ld_dealer.get('openingHoursSpecification') if ld_dealer else None,
-        'hours_blocks': c['hoursBlocks'], 'header_text': c['header'], 'footer_text': c['footer'],
-        'hours': {'sales': {'site': None, 'google': None, 'bing': None, 'group_card': None}, 'service': {'site': None, 'google': None, 'bing': None, 'group_card': None}, 'parts': {'site': None, 'google': None, 'bing': None, 'group_card': None}},
+        'site_address': addr, 'site_address_source': addr_src, 'google_address': None, 'bing_address': None, 'group_card_address': (r.get('group_card') or {}).get('address'),
+        'site_name_schema': (schema['business'] or {}).get('name'), 'schema': schema, 'read_at': at,
+        'hours': hours, 'hours_blocks': blocks, 'header_text': c['header'], 'footer_text': c['footer'],
         'mismatches': [], 'captures': []}
     store.results['phones'] = phones
     if c['specialHours']:
         holidays = re.findall(r"(Christmas Eve|Christmas Day|Christmas|New Year's Eve|New Year's Day|Thanksgiving|Labor Day|Memorial Day|Independence Day|July 4th|Easter|Good Friday|Veterans Day|Columbus Day|Juneteenth|MLK Day|Presidents'? Day)", c['specialHours'], re.I)
         store.results['special_hours'] = {'where': 'home page', 'text': c['specialHours'][:1200], 'holidays': sorted(set(holidays), key=holidays.index)}
     try:
-        captures.element_shot(store, page, '[class*="hours"], #hours, [id*="hours"]', 'hours_site.png', pad=12)
+        captures.element_shot(store, page, '[class*="ws-hours"], [id*="hours-app"], [class*="hours"], #hours, [id*="hours"]', 'hours_site.png', pad=12)
         store.results['address_hours']['captures'].append('captures/hours_site.png')
     except Exception as e:
         store.not_captured('hours_site.png', str(e))
+    if addr:
+        try:
+            first = re.match(r'\d+\s+\S+', addr)
+            zipm = re.search(r'\b\d{5}(?:-\d{4})?\b', addr)
+            captures.text_shot(store, page, first.group(0) if first else addr[:12], 'address_site.png', pad=6, also=zipm.group(0) if zipm else None)
+            store.results['address_hours']['captures'].append('captures/address_site.png')
+        except Exception as e:
+            store.not_captured('address_site.png', str(e))
     store.check('contact_info', 'ok')
 
 
@@ -248,9 +406,15 @@ def pages(store, page):
         text = page.evaluate('() => document.body.innerText')
         entry = {'page': key, 'url': url, 'capture': f'captures/{name}', 'text_flags': [m.group(0) for m in SPECIALS_EMPTY.finditer(text)][:3], 'first_300': re.sub(r'\s+', ' ', text)[:300]}
         if key.startswith('specials'):
-            entry['cards'] = page.evaluate("""() => [...document.querySelectorAll('[class*="special"], [class*="offer"], [class*="coupon"], article, .card')].slice(0, 30).map(c => ({
-                title: ((c.querySelector('h1,h2,h3,h4') || {}).innerText || '').trim().slice(0, 100), price_text: ((c.innerText || '').match(/\\$?\\s?\\d[\\d,]*(\\.\\d\\d)?/) || [''])[0], has_image: !!c.querySelector('img') })).filter(c => c.title)""")
-            entry['vendor_banners'] = page.evaluate("""() => [...document.querySelectorAll('img[alt]')].map(i => i.alt).filter(a => /sunbit|affirm|kbb|carfax|autocheck|synchrony|drive ?plus/i.test(a)).slice(0, 10)""")
+            sc = page.evaluate(snippets.SPECIALS_CARDS)
+            entry['cards'] = sc['cards']
+            entry['card_group'] = sc['card_group']
+            entry['h1'] = sc['h1']
+            entry['content_text_chars'] = sc['main_text_chars']
+            entry['content_images'] = sc['content_images']
+            if not sc['cards'] and sc['main_text_chars'] < 400:
+                entry['text_flags'].append(f'looks empty: no offer cards, {sc["main_text_chars"]} characters of page content, {"no H1" if not sc["h1"] else "H1 " + sc["h1"]}')
+            entry['vendor_banners'] = page.evaluate("""() => [...document.querySelectorAll('img[alt], img[title]')].map(i => (i.alt || '') + ' ' + (i.title || '')).map(a => a.trim()).filter(a => /sunbit|affirm|kbb|carfax|autocheck|synchrony|drive ?plus|cannon|service now/i.test(a)).slice(0, 10)""")
             r['cx'].append(entry)
         elif key in ('about_us', 'finance', 'lease'):
             r['content'].append(entry)
@@ -258,7 +422,7 @@ def pages(store, page):
                 r['about_us_first_para'] = entry['first_300']
         elif key == 'blog':
             posts = page.evaluate("""() => document.querySelectorAll('article, .post, [class*="blog-post"], [class*="entry"]').length""")
-            nop = re.search(r'no posts|nothing found|no results', text, re.I)
+            nop = re.search(r'no posts|nothing found|no results|sorry, no [^\n]{0,60}available|check back', text, re.I)
             r['blog'] = {'url': url, 'posts': posts, 'no_posts_text': nop.group(0) if nop else None, 'capture': f'captures/{name}'}
         elif key == 'hours_page':
             sp = page.evaluate(snippets.CONTACT_TEXT).get('specialHours')
@@ -269,6 +433,9 @@ def pages(store, page):
             r['cx'].append(entry)
         # empty-block candidates on this page, with the page captured and each candidate boxed
         try:
+            broken = page.evaluate(snippets.BROKEN_IMAGES)
+            if broken:
+                entry['broken_images'] = broken
             blocks = page.evaluate(snippets.EMPTY_BLOCKS)
             if blocks:
                 ename = f'empty_{key}.png'
@@ -279,8 +446,32 @@ def pages(store, page):
         except Exception as e:
             store.not_captured(f'empty blocks on {key}', str(e))
         opened.append(key)
-    # every page the Research menu opens (model research pages)
-    research = [l for l in links if re.search(r'research|model', l['top'] or '', re.I) and l['host'] == urlparse(home).netloc][:12]
+    # every other page the Specials menu opens (Parts, Accessory, Tire specials), captured the same way
+    specials_menu = [l for l in links if re.search(r'special|offer', l['top'] or '', re.I) and l['host'] == urlparse(home).netloc and l['href'] not in {c['url'] for c in r['cx']}][:8]
+    for l in specials_menu:
+        if store.over_budget():
+            break
+        key = 'specials_' + slug(re.sub(r'\bspecials?\b', '', l['label'], flags=re.I).strip() or l['label'])
+        if any(c['page'] == key for c in r['cx']):
+            continue
+        try:
+            resp = captures.goto(page, l['href'], wait='domcontentloaded')
+            page.wait_for_timeout(1000)
+            if not resp or resp.status != 200 or NOT_FOUND.search(page.title() or ''):
+                continue
+            name = f'{key}.png'
+            captures.shot(store, page, name, full_page=True, zoom=config.DEALER_ZOOM)
+            text = page.evaluate('() => document.body.innerText')
+            sc = page.evaluate(snippets.SPECIALS_CARDS)
+            entry = {'page': key, 'label': l['label'], 'menu': l['top'], 'url': page.url, 'capture': f'captures/{name}', 'text_flags': [m.group(0) for m in SPECIALS_EMPTY.finditer(text)][:3],
+                     'cards': sc['cards'], 'h1': sc['h1'], 'content_text_chars': sc['main_text_chars'], 'content_images': sc['content_images'], 'first_300': re.sub(r'\s+', ' ', text)[:300]}
+            if not sc['cards'] and sc['main_text_chars'] < 400:
+                entry['text_flags'].append(f'looks empty: no offer cards, {sc["main_text_chars"]} characters of page content, {"no H1" if not sc["h1"] else "H1 " + sc["h1"]}')
+            r['cx'].append(entry)
+        except Exception as e:
+            store.not_captured(f'specials page {l["label"]}', str(e))
+    # every page the Research menu opens (model research pages), and research pages elsewhere in the menu by path
+    research = [l for l in links if (re.search(r'research|model', l['top'] or '', re.I) or '/research/' in l['path']) and l['host'] == urlparse(home).netloc][:12]
     for l in research:
         if store.over_budget():
             break

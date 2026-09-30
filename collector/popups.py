@@ -4,6 +4,7 @@ seconds from navigation start and from the load event, screenshots before and af
 and the page loaded again so a cookie-capped pop-up is seen twice (the skill's method). A headless page has no
 hidden-tab timing problem, so every load is a visible-tab load."""
 from . import captures, config, snippets
+from .store import now_et
 
 
 def timing(store, browser):
@@ -12,6 +13,7 @@ def timing(store, browser):
     selectors = [v['selector'] for v in config.POPUP_VENDORS]
     loads = []
     ctx = browser.context()
+    ctx.add_init_script(snippets.LCP_OBSERVER)
     page = ctx.new_page()
     try:
         for n in range(2):
@@ -26,8 +28,10 @@ def timing(store, browser):
             open_s = res['popupSec']
             if vendor == 'Gubagoo' and res.get('gubagooSec'):
                 open_s = res['gubagooSec']   # the invite renders before a poll can start; its avatar's start time marks it
+            lcp = page.evaluate(snippets.LCP_READ)
             loads.append({'n': n + 1, 'vendor': vendor, 'selector': res['hit']['selector'] if res['hit'] else None, 'open_s': open_s,
-                          'load_s': res['loadSec'], 'bouncex': res.get('bouncex'), 'at': store.results['captured_at']})
+                          'load_s': res['loadSec'], 'bouncex': res.get('bouncex'), 'at': now_et(),
+                          'lcp_observed': lcp and {**lcp, 'source': "the collector's own headless load (PerformanceObserver), not PageSpeed"}})
             if n == 0 and res['hit']:
                 page.wait_for_timeout(500)
                 captures.shot(store, page, 'popup_after.png')
@@ -37,7 +41,11 @@ def timing(store, browser):
         r['popup'] = {'vendor': first['vendor'] if first else None, 'selector': first['selector'] if first else None,
                       'open_s': first['open_s'] if first else None, 'load_s': first['load_s'] if first else (loads[0]['load_s'] if loads else None),
                       'loads': loads, 'second_vendor': None, 'on_srp': None, 'on_vdp_load': None,
+                      'lcp_observed': next((l['lcp_observed'] for l in loads if l.get('lcp_observed')), None),
+                      'vendors_present': page.evaluate(snippets.VENDOR_SCRIPTS),
                       'captures': ['captures/popup_before.png'] + (['captures/popup_after.png'] if first else [])}
+        if not first and r['popup']['vendors_present']:
+            store.not_captured('homepage pop-up timing', f'no overlay opened in {config.POPUP_POLL_MS // 1000} s on two loads, but these vendors\' scripts loaded: {", ".join(r["popup"]["vendors_present"])}; some (Gubagoo) do not render for an automation-flagged browser, so the timing goes to Chrome')
         # Wunderkind campaigns list exit-intent ("bounce") and timed activations; keep them for a second-vendor call
         bx = next((l['bouncex'] for l in loads if l.get('bouncex')), None)
         if bx:

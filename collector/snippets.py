@@ -3,22 +3,42 @@ They run in the page through Playwright's evaluate. Where the skill's snippet us
 an async function. The skill's script-output workaround (hosts printed with spaces) is not needed here, since
 Playwright returns what the page returns; hosts come back as plain hosts."""
 
-# SEO META fields, after the page loads (keep the image counts from the homepage only)
+# SEO META fields, after the page loads (keep the image counts from the homepage only). The skill scrolls to the
+# bottom first so lazy images load; headless, a single jump leaves lazy sections unloaded (Bay Hyundai read 54/27/53
+# that way and 52/46/51 after a stepwise pass, the fixture's numbers), so the pass scrolls in steps first. A visible H1
+# is one with a box bigger than the 1 px sr-only clip; the counts still include hidden ones, as the extension does.
 SEO_META = """async () => {
-  window.scrollTo(0, document.body.scrollHeight); await new Promise(r => setTimeout(r, 2500));
-  const im = [...document.images], md = document.querySelector('meta[name="description"]');
-  const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+  const h = document.body.scrollHeight; for (let y = 0; y < h; y += 700) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 150)); }
+  window.scrollTo(0, document.body.scrollHeight); await new Promise(r => setTimeout(r, 2500)); window.scrollTo(0, 0);
+  const all = [...document.images], md = document.querySelector('meta[name="description"]');
+  // a Google map widget adds over a hundred tile images of its own (Bay Hyundai: 118); the counts keep the page's own
+  // images, and the with-map counts sit beside them
+  const inMap = i => !!i.closest('.gm-style, [class*="map-dynamic"], [class*="google-map"], [class*="googlemap"], [id*="google-map"], [class*="mapbox"], [class*="leaflet"]');
+  const im = all.filter(i => !inMap(i));
+  const cnt = arr => ({ images: arr.length, noAlt: arr.filter(i => !(i.getAttribute('alt') || '').trim()).length, noTitle: arr.filter(i => !(i.getAttribute('title') || '').trim()).length });
+  // carousels clone their slides and swap lazy images as they rotate, so a read's counts depend on the carousel's state
+  const inCarousel = im.filter(i => i.closest('[class*="slick"], [class*="carousel"], [class*="slider"], [class*="swiper"]'));
+  const cloned = im.filter(i => i.closest('.slick-cloned, [class*="clone"]'));
+  const carousel = { images: inCarousel.length, noAlt: inCarousel.filter(i => !(i.getAttribute('alt') || '').trim()).length, cloned: cloned.length, clonedNoAlt: cloned.filter(i => !(i.getAttribute('alt') || '').trim()).length };
+  const vis = e => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.opacity !== '0'; };
   return { title: document.title, titleLen: document.title.length, meta: md ? md.content : '', metaLen: md ? md.content.length : 0,
-    h: [1,2,3,4,5,6].map(i => document.querySelectorAll('h' + i).length),
-    h1Visible: [...document.querySelectorAll('h1')].filter(vis).map(e => e.innerText.trim().slice(0, 120)),
+    h: [1,2,3,4,5,6].map(i => document.querySelectorAll('h' + i).length), withMap: all.length !== im.length ? cnt(all) : null, mapImages: all.length - im.length, carousel,
+    h1All: [...document.querySelectorAll('h1')].map(e => (e.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 120)),
+    h1Visible: [...document.querySelectorAll('h1')].filter(vis).map(e => e.innerText.trim().replace(/\\s+/g, ' ').slice(0, 120)),
     images: im.length, noAlt: im.filter(i => !(i.getAttribute('alt') || '').trim()).length,
     noTitle: im.filter(i => !(i.getAttribute('title') || '').trim()).length };
 }"""
 
-# Vehicle links on the SRP
+# Vehicle links on the SRP: the skill's selector (a[href*="/inventory/"]) first; when it matches nothing, the platform's
+# own VDP link pattern (Dealer.com links VDPs as /new/Make/... and /used/Make/..., the fixture's note), recorded as such
 SRP_LINKS = """() => {
-  const inv = [...document.querySelectorAll('a[href*="/inventory/"]')].map(a => a.getAttribute('href'));
-  return { links: inv.length, http: inv.filter(h => h.startsWith('http://')).length, example: inv.find(h => h.startsWith('http://')) || '' };
+  const count = sel => { const inv = [...document.querySelectorAll(sel)].map(a => a.getAttribute('href') || '').filter(h => !/\\/index\\.htm|\\/specials|promotions|research/i.test(h));
+    return { selector: sel, links: inv.length, unique: new Set(inv.map(h => h.split('?')[0])).size, http: inv.filter(h => h.startsWith('http://')).length, example: inv.find(h => h.startsWith('http://')) || '' }; };
+  const skill = count('a[href*="/inventory/"]');
+  if (skill.links) return { ...skill, skill_selector_links: skill.links };
+  for (const sel of ['a[href^="/new/"], a[href*="/new/"][href$=".htm"]', 'a[href*="/vehicle/"], a[href*="/vehicles/"]', 'a[href*="/vdp/"], a[href*="/detail"]', 'a[href*="vin="], a[href*="/vin/"]']) {
+    const c = count(sel); if (c.links) return { ...c, skill_selector_links: 0 }; }
+  return { ...skill, skill_selector_links: 0 };
 }"""
 
 # Links on the VDP that leave the site
@@ -48,8 +68,12 @@ CONTACT_TEXT = """() => {
   const text = sel => [...document.querySelectorAll(sel)].map(e => e.innerText.trim()).filter(Boolean);
   const tel = [...document.querySelectorAll('a[href^="tel:"]')].map(a => ({ text: a.innerText.trim().slice(0, 60), number: a.getAttribute('href').replace('tel:', '') }));
   const ld = [...document.querySelectorAll('script[type="application/ld+json"]')].map(s => { try { return JSON.parse(s.textContent); } catch (e) { return null; } }).filter(Boolean);
-  const hoursBlocks = [...document.querySelectorAll('*')].filter(e => /hours/i.test(e.className + ' ' + e.id) && e.innerText && e.innerText.length < 2000 && e.innerText.length > 20)
-    .slice(0, 6).map(e => ({ where: (e.id || e.className || '').toString().slice(0, 60), text: e.innerText.trim().slice(0, 1500) }));
+  const heading = e => { const own = e.querySelector('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="heading"]'); if (own && own.innerText.trim()) return own.innerText.trim().slice(0, 60);
+    for (let p = e.previousElementSibling; p; p = p.previousElementSibling) { const t = (p.innerText || '').trim(); if (t) return t.slice(0, 60); }
+    for (let p = e.parentElement, n = 0; p && n < 3; p = p.parentElement, n++) { const hd = [...p.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(h => /hours/i.test(h.innerText)); if (hd) return hd.innerText.trim().slice(0, 60); } return null; };
+  const hoursBlocks = [...document.querySelectorAll('*')].filter(e => /hours/i.test(e.className + ' ' + e.id) && e.innerText && e.innerText.length < 2000 && e.innerText.length > 20 && /am|pm|closed/i.test(e.innerText))
+    .filter((e, i, arr) => !arr.some(o => o !== e && o.contains(e) && /hours/i.test(o.className + ' ' + o.id) && o.innerText.length < 2000))
+    .slice(0, 6).map(e => ({ where: (e.id || e.className || '').toString().slice(0, 60), heading: heading(e), text: e.innerText.trim().slice(0, 1500) }));
   const special = [...document.querySelectorAll('*')].filter(e => /special hours/i.test(e.innerText || '') && e.innerText.length < 1500).slice(-1).map(e => e.innerText.trim());
   return { header: text('header').slice(0, 2).map(t => t.slice(0, 1500)), footer: text('footer').slice(0, 2).map(t => t.slice(0, 2000)), tel, ld, hoursBlocks, specialHours: special[0] || null };
 }"""
@@ -63,14 +87,25 @@ EMPTY_BLOCKS = """() => {
     if (r.height < 150 || r.width < 300) continue;
     if ((e.innerText || '').trim()) continue;
     if (e.querySelector('img, picture, video, iframe, svg, canvas')) continue;
+    // media elements are content, not blank space: a loaded image is a photo, an iframe is a widget; an img that never
+    // loaded is reported separately below as a broken image
+    if (['SCRIPT', 'STYLE', 'HTML', 'BODY', 'HEAD', 'IMG', 'PICTURE', 'VIDEO', 'IFRAME', 'SVG', 'CANVAS', 'OBJECT', 'EMBED'].includes(e.tagName)) continue;
     const cs = getComputedStyle(e);
-    if (cs.backgroundImage !== 'none' || cs.display === 'none' || cs.visibility === 'hidden') continue;
-    if (['SCRIPT', 'STYLE', 'HTML', 'BODY', 'HEAD'].includes(e.tagName)) continue;
+    if (cs.backgroundImage !== 'none' || cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0' || cs.position === 'fixed') continue;
+    if (r.left + scrollX < 0 || r.left + scrollX > document.documentElement.scrollWidth) continue;
+    if (e.closest('.gm-style, [class*="map"], [id*="map"]')) continue;
     out.push({ tag: e.tagName.toLowerCase(), id: e.id, cls: (e.className || '').toString().slice(0, 80), x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) });
   }
-  // keep the outermost of nested candidates
-  return out.filter((a, i) => !out.some((b, j) => j !== i && b.x <= a.x && b.y <= a.y && b.x + b.w >= a.x + a.w && b.y + b.h >= a.y + a.h && (b.w * b.h > a.w * a.h))).slice(0, 20);
+  // keep the outermost of nested candidates, and drop repeats of the same box
+  const seen = new Set();
+  return out.filter((a, i) => !out.some((b, j) => j !== i && b.x <= a.x && b.y <= a.y && b.x + b.w >= a.x + a.w && b.y + b.h >= a.y + a.h && (b.w * b.h > a.w * a.h)))
+            .filter(a => { const k = a.x + ',' + a.y + ',' + a.w + ',' + a.h; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 12);
 }"""
+
+# Images that never loaded (a broken src or a lazy image the scroll pass did not trigger), at least 150 x 300, so a
+# blank photo block that is an img element is on record too
+BROKEN_IMAGES = """() => [...document.images].filter(i => { const r = i.getBoundingClientRect(); return r.width >= 300 && r.height >= 150 && i.complete && i.naturalWidth === 0; })
+  .map(i => { const r = i.getBoundingClientRect(); return { src: (i.currentSrc || i.src || i.getAttribute('data-src') || '').slice(0, 160), alt: (i.getAttribute('alt') || '').slice(0, 80), x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }; }).slice(0, 12)"""
 
 # Home slider slides from the page source (each slide image's alt text), so none is missed while the carousel rotates
 SLIDER_ALTS = """() => {
@@ -80,27 +115,72 @@ SLIDER_ALTS = """() => {
   return [...imgs.values()].slice(0, 30);
 }"""
 
-# The VDP's price stack and CTA stack, as the mobile template shows them: every element whose text looks like a price
-# or a label beside one, in document order, and every visible button-like link
+# The VDP's price stack and CTA stack. Every element whose text is a dollar figure, with its label (the dt or the short
+# ancestor text around it: MSRP, Doc Fee, Bay Price), nested duplicates dropped; the stack is the cluster of labeled
+# prices around the first one, the biggest by font size marked; the CTAs are the button-like links in and just under
+# that block, the media toolbar (Track Price, Save, Share, Compare) left out; every button on the page is kept too.
 VDP_STACK = """() => {
-  const money = /\\$\\s?\\d[\\d,]*(\\.\\d\\d)?/;
+  const money = /-?\\$\\s?\\d[\\d,]*(\\.\\d\\d)?/;
   const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-  const prices = [];
-  for (const e of document.querySelectorAll('span, div, dd, dt, td, th, p, strong, b, li')) {
+  const clean = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const raw = [];
+  for (const e of document.querySelectorAll('span, div, dd, dt, td, th, p, strong, b, li, h1, h2, h3, h4')) {
     if (!vis(e) || e.children.length > 3) continue;
-    const t = (e.innerText || '').trim().replace(/\\s+/g, ' ');
+    const t = clean(e.innerText);
     if (t.length > 80 || !money.test(t)) continue;
     const r = e.getBoundingClientRect();
-    prices.push({ text: t, value: parseFloat(t.match(money)[0].replace(/[$,\\s]/g, '')), y: Math.round(r.top + scrollY), size: parseFloat(getComputedStyle(e).fontSize) });
+    let label = t.replace(money, '').replace(/[:|]/g, '').trim();
+    if (!label) { const prev = e.previousElementSibling; if (prev && clean(prev.innerText).length < 40 && !money.test(prev.innerText)) label = clean(prev.innerText);
+      else { let p = e.parentElement; for (let n = 0; p && n < 3 && !label; p = p.parentElement, n++) { const pt = clean(p.innerText); if (pt.length < 80 && pt.includes(t)) { const rest = pt.replace(t, '').trim(); if (rest && !money.test(rest)) label = rest; } } } }
+    raw.push({ text: t, label: label.slice(0, 40), value: parseFloat(t.match(money)[0].replace(/[$,\\s]/g, '')), negative: /^-/.test(t.match(money)[0]), y: Math.round(r.top + scrollY), x: Math.round(r.left), size: parseFloat(getComputedStyle(e).fontSize), weight: getComputedStyle(e).fontWeight });
   }
-  const seen = new Set();
-  const stack = prices.filter(p => { const k = p.text + '@' + p.y; if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => a.y - b.y).slice(0, 25);
-  const ctas = [...document.querySelectorAll('a, button')].filter(vis).filter(e => /btn|button|cta/i.test(e.className) || e.tagName === 'BUTTON')
-    .map(e => { let host = ''; try { host = e.href ? new URL(e.href).host : ''; } catch (x) {} const r = e.getBoundingClientRect();
-      return { text: (e.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 50), host, href: e.href || '', y: Math.round(r.top + scrollY), tel: /^tel:/.test(e.getAttribute('href') || '') }; })
-    .filter(c => c.text).slice(0, 40);
-  return { prices: stack, ctas, host: location.host };
+  raw.sort((a, b) => a.y - b.y || a.x - b.x);
+  const prices = raw.filter((p, i) => !raw.slice(0, i).some(q => q.value === p.value && Math.abs(q.y - p.y) < 8));
+  const labeled = prices.filter(p => /price|msrp|fee|discount|savings|rebate|payment|total|offer|cash|retail|invoice|sale/i.test(p.label));
+  let stack = [];
+  if (labeled.length) { const top = labeled[0].y; stack = prices.filter(p => p.y >= top - 40 && p.y <= top + 700); }
+  else stack = prices.slice(0, 8);
+  let big = null; for (const p of stack) if (!big || p.size > big.size || (p.size === big.size && p.value > big.value)) big = p;
+  for (const p of stack) p.biggest = p === big;
+  const isCta = e => /btn|button|cta/i.test(e.className) || e.tagName === 'BUTTON' || (e.getAttribute('role') === 'button');
+  const buttons = [...document.querySelectorAll('a, button, [role="button"]')].filter(vis).filter(isCta).map(e => { let host = ''; try { host = e.href ? new URL(e.href).host : ''; } catch (x) {} const r = e.getBoundingClientRect();
+      return { text: clean(e.innerText).slice(0, 50), host, href: (e.href || '').slice(0, 200), y: Math.round(r.top + scrollY), h: Math.round(r.height), tel: /^tel:/.test(e.getAttribute('href') || ''), target: e.target || '' }; })
+    .filter(c => c.text || c.tel);
+  const seenB = new Set(); const all = buttons.filter(b => { const k = b.text + '@' + b.y; if (seenB.has(k)) return false; seenB.add(k); return true; });
+  let ctas = [];
+  if (stack.length) { const top = Math.min(...stack.map(p => p.y)), bot = Math.max(...stack.map(p => p.y)); ctas = all.filter(b => b.y >= top - 120 && b.y <= bot + 650 && !/track price|^save$|^share$|compare|window sticker|full specs|^details$|highlights|full review/i.test(b.text)); }
+  // tel links hidden on desktop but in the same template (Call Now shows only on a phone)
+  const hiddenTel = [...document.querySelectorAll('a[href^="tel:"]')].filter(e => !vis(e)).map(e => ({ text: clean(e.innerText).slice(0, 40), number: (e.getAttribute('href') || '').replace('tel:', '') })).slice(0, 6);
+  return { prices: stack, other_prices: prices.filter(p => !stack.includes(p)).slice(0, 12), ctas, buttons_all: all.slice(0, 60), hidden_tel: hiddenTel, host: location.host };
 }"""
+
+# The VDP in a phone-sized layout (412 x 823, a mobile Chrome user agent), the same template PageSpeed renders: where
+# the price stack and the CTA stack sit (one swipe is one full screen of 823 px), what covers the page on load (a
+# vendor overlay or any fixed element over a third of the screen), whether the ComplyAuto panel shows, whether a
+# promotion banner takes the top of the first screen, and the header's tel link.
+VDP_MOBILE = """({ priceTexts, ctaTexts, popupSelectors }) => {
+  const vis = e => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+  const clean = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const H = innerHeight, W = innerWidth;
+  const firstY = (texts, sel) => { let best = null; for (const e of document.querySelectorAll(sel)) { if (!vis(e)) continue; const t = clean(e.innerText); if (!t || t.length > 80) continue;
+      if (texts.some(x => x && t === x)) { const y = Math.round(e.getBoundingClientRect().top + scrollY); if (best === null || y < best) best = y; } } return best; };
+  const priceY = firstY(priceTexts, 'span, div, dd, dt, td, p, strong, b, li');
+  const ctaY = firstY(ctaTexts, 'a, button, [role="button"]');
+  const ctaYs = ctaTexts.map(t => firstY([t], 'a, button, [role="button"]')).filter(y => y !== null);
+  const priceYs = priceTexts.map(t => firstY([t], 'span, div, dd, dt, td, p, strong, b, li')).filter(y => y !== null);
+  const fixed = [...document.querySelectorAll('body *')].filter(e => { const cs = getComputedStyle(e); if (cs.position !== 'fixed' || !vis(e)) return false; const r = e.getBoundingClientRect(); return r.width * r.height > W * H / 3 && clean(e.innerText).length > 0; })
+    .map(e => ({ id: e.id, cls: (e.className || '').toString().slice(0, 60), text: clean(e.innerText).slice(0, 120), h: Math.round(e.getBoundingClientRect().height) }));
+  const vendor = popupSelectors.map(s => { try { const e = document.querySelector(s); return e && vis(e) ? { selector: s, text: clean(e.innerText).slice(0, 100) } : null; } catch (x) { return null; } }).filter(Boolean);
+  const comply = [...document.querySelectorAll('body *')].find(e => vis(e) && /Your Privacy/i.test(e.innerText || '') && /ComplyAuto/i.test(e.innerText || '') && e.getBoundingClientRect().height > 150 && e.innerText.length < 1500);
+  const topText = [...document.querySelectorAll('body *')].filter(e => vis(e) && e.children.length < 4 && e.getBoundingClientRect().top + scrollY < H / 3).map(e => clean(e.innerText)).filter(Boolean).join(' | ').slice(0, 800);
+  const tel = [...document.querySelectorAll('a[href^="tel:"]')].filter(vis).map(e => ({ text: clean(e.innerText).slice(0, 40), number: (e.getAttribute('href') || '').replace('tel:', ''), y: Math.round(e.getBoundingClientRect().top + scrollY) })).slice(0, 8);
+  return { priceY, ctaY, priceBottom: priceYs.length ? Math.max(...priceYs) : null, ctaBottom: ctaYs.length ? Math.max(...ctaYs) : null, fixed, vendor, complyauto: comply ? clean(comply.innerText).slice(0, 120) : null, topText, tel, docHeight: document.documentElement.scrollHeight, screen: [W, H] };
+}"""
+
+# The vehicle photo currently showing in the VDP's gallery: the visible image nearest the frame's center
+VDP_PHOTO = """() => { const imgs = [...document.querySelectorAll('img')].filter(i => { const r = i.getBoundingClientRect(); return r.width >= 300 && r.height >= 180 && i.closest('[id*="carousel"], [class*="carousel"], [class*="gallery"], [class*="media"], [class*="slider"], [class*="photo"]'); });
+  if (!imgs.length) return null; const cx = innerWidth / 2; imgs.sort((a, b) => Math.abs((a.getBoundingClientRect().left + a.getBoundingClientRect().right) / 2 - cx) - Math.abs((b.getBoundingClientRect().left + b.getBoundingClientRect().right) / 2 - cx));
+  const r = imgs[0].getBoundingClientRect(); return { x: Math.max(0, r.left + scrollX), y: r.top + scrollY, w: Math.min(r.width, innerWidth - Math.max(0, r.left)), h: r.height, src: (imgs[0].currentSrc || imgs[0].src || '').slice(0, 160), alt: (imgs[0].getAttribute('alt') || '').slice(0, 80) }; }"""
 
 # Clear cookies and storage so a cookie-capped pop-up opens again on reload (references/04_capture.md)
 CLEAR_STORAGE = """() => {
@@ -144,3 +224,41 @@ TREEMAP_GTM = """() => {
 HIDE = """(sels) => { for (const s of sels) for (const e of document.querySelectorAll(s)) e.style.display = 'none'; return true; }"""
 ZOOM = """(z) => { document.documentElement.style.zoom = String(z); return true; }"""
 SCROLL_PASS = """async () => { const h = document.body.scrollHeight; for (let y = 0; y < h; y += 800) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 120)); } window.scrollTo(0, 0); await new Promise(r => setTimeout(r, 600)); return h; }"""
+
+# Registered before any page script runs: the LCP entries of the collector's own load, so the element the page paints
+# largest (a hero image or a pop-up's image) is on record with its source labeled. Not PageSpeed's LCP; a second source.
+LCP_OBSERVER = """(() => { try { window.__lcpEntries = []; new PerformanceObserver(list => { for (const e of list.getEntries()) { const el = e.element;
+  window.__lcpEntries.push({ t: Math.round(e.startTime), size: e.size, tag: el ? el.tagName : null, id: el ? el.id : null, cls: el ? (el.className || '').toString().slice(0, 80) : null,
+    src: el && (el.currentSrc || el.src) ? (el.currentSrc || el.src).slice(0, 160) : null, text: el ? (el.innerText || '').trim().slice(0, 80) : null }); } }).observe({ type: 'largest-contentful-paint', buffered: true }); } catch (e) {} })()"""
+LCP_READ = """() => (window.__lcpEntries || []).slice(-1)[0] || null"""
+
+# Which pop-up and chat vendors' scripts loaded on the page, whether or not anything rendered
+VENDOR_SCRIPTS = """() => { const names = { gubagoo: 'Gubagoo', podium: 'Podium', bouncex: 'Wunderkind', wunderkind: 'Wunderkind', dealerbluesky: 'dealerbluesky', tecobi: 'Tecobi', complyauto: 'ComplyAuto', dealeron: 'DealerOn', carnow: 'CarNow', conversica: 'Conversica', 'livechat': 'LiveChat', 'drift': 'Drift', 'intercom': 'Intercom', 'activengage': 'ActivEngage', 'fullpath': 'Fullpath', 'roadster': 'Roadster', 'foureyes': 'Foureyes' };
+  const urls = performance.getEntriesByType('resource').map(r => r.name.toLowerCase()).join(' ') + ' ' + [...document.scripts].map(s => (s.src || '').toLowerCase()).join(' ');
+  return [...new Set(Object.keys(names).filter(k => urls.includes(k)).map(k => names[k]))]; }"""
+
+# Specials cards: the largest group of repeated, same-shaped blocks on the page that carry an image (or a background
+# image) and some text; each card's title, price text and image presence. Also how much text the page's own content
+# holds outside the header and footer, so an empty page (Bay Hyundai's Accessory Specials: no heading, no offers,
+# only the contact sidebar) shows as one.
+SPECIALS_CARDS = """() => {
+  const vis = e => { const r = e.getBoundingClientRect(); return r.width >= 200 && r.width <= 760 && r.height >= 120 && r.height <= 1000; };
+  const clean = t => (t || '').replace(/\\s+/g, ' ').trim();
+  const money = /\\$\\s?\\d[\\d,]*(\\.\\d\\d)?(\\s?\\/\\s?mo)?|\\d+(\\.\\d+)?%\\s?(APR|off)/i;
+  const groups = {};
+  for (const e of document.querySelectorAll('body *')) {
+    if (!vis(e) || e.closest('header, footer, nav, .page-header, [class*="footer"], [class*="map"]')) continue;
+    const t = clean(e.innerText); if (t.length < 8 || t.length > 700) continue;
+    const hasImg = !!e.querySelector('img, picture') || getComputedStyle(e).backgroundImage !== 'none';
+    if (!hasImg) continue;
+    const k = e.tagName + '.' + (e.className || '').toString().trim().split(/\\s+/).slice(0, 2).join('.') + '>' + (e.parentElement ? e.parentElement.tagName + '.' + (e.parentElement.className || '').toString().trim().split(/\\s+/)[0] : '');
+    (groups[k] = groups[k] || []).push(e);
+  }
+  const best = Object.entries(groups).filter(([k, v]) => v.length >= 2).sort((a, b) => b[1].length - a[1].length)[0];
+  const cards = best ? best[1].slice(0, 30).map(e => { const h = e.querySelector('h1,h2,h3,h4,h5,h6,strong,[class*="title"],[class*="heading"]'); const t = clean(e.innerText);
+      return { title: clean(h ? h.innerText : t.split(/[.|]/)[0]).slice(0, 100), price_text: (t.match(money) || [''])[0], has_image: !!e.querySelector('img[src], img[data-src], picture'), text: t.slice(0, 200) }; }) : [];
+  const main = document.querySelector('main, [role="main"], #main, .main-content') || document.body;
+  let mainText = clean(main.innerText); for (const x of main.querySelectorAll('header, footer, nav, .page-header, [class*="footer"], [class*="sidebar"], [class*="map"]')) mainText = mainText.replace(clean(x.innerText), '');
+  const h1 = document.querySelector('h1'); const imgs = [...document.images].filter(i => !i.closest('header, footer, nav, .page-header, [class*="footer"], [class*="map"]') && i.getBoundingClientRect().width > 80).length;
+  return { cards, card_group: best ? best[0] : null, main_text_chars: mainText.length, h1: h1 ? clean(h1.innerText).slice(0, 120) : null, content_images: imgs };
+}"""

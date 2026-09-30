@@ -65,18 +65,112 @@ def shot(store, page, name, full_page=False, clip=None, zoom=None):
 
 
 def element_shot(store, page, selector, name, zoom=None, pad=0):
-    """Capture one element (the Bing panel, a PageSpeed gauge block) by its bounding box, at scale 1."""
+    """Capture one element (the Bing panel, a hours block) by its bounding box, at scale 1, below any sticky header."""
     prepare(page, zoom)
-    el = page.query_selector(selector)
-    if el is None:
-        raise RuntimeError(f'no element {selector} for {name}')
-    el.scroll_into_view_if_needed()
-    page.wait_for_timeout(300)
-    box = el.bounding_box()
+    box = page.evaluate("""(sel) => { const e = [...document.querySelectorAll(sel)].find(x => x.getBoundingClientRect().width > 2 && x.getBoundingClientRect().height > 2);
+        if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height }; }""", selector)
     if not box:
-        raise RuntimeError(f'{selector} has no box for {name}')
-    clip = {'x': max(0, box['x'] - pad), 'y': max(0, box['y'] - pad), 'width': box['width'] + 2 * pad, 'height': box['height'] + 2 * pad}
-    return shot(store, page, name, clip=clip)
+        page.evaluate(snippets.ZOOM, 1)
+        raise RuntimeError(f'no visible element {selector} for {name}')
+    path = box_shot(store, page, box, name, pad=pad, remeasure=("""(sel) => { const e = [...document.querySelectorAll(sel)].find(x => x.getBoundingClientRect().width > 2 && x.getBoundingClientRect().height > 2);
+        if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }""", selector))
+    page.evaluate(snippets.ZOOM, 1)
+    return path
+
+
+STICKY_TOP = """() => { let h = 0; for (const e of document.querySelectorAll('body *')) { const cs = getComputedStyle(e); if ((cs.position === 'fixed' || cs.position === 'sticky') && cs.display !== 'none') {
+  const r = e.getBoundingClientRect(); if (r.top <= 2 && r.width > innerWidth * 0.6 && r.height < innerHeight * 0.5) h = Math.max(h, r.bottom); } } return Math.round(h); }"""
+
+
+def sticky_top(page):
+    """The height of a fixed or sticky header at the top of the frame, so a capture can be scrolled out from under it."""
+    try:
+        return page.evaluate(STICKY_TOP)
+    except Exception:
+        return 0
+
+
+def box_shot(store, page, box, name, pad=0, zoom=None, remeasure=None):
+    """Capture a page-coordinate box at scale 1: scroll it into the frame below any sticky header, clip in viewport
+    coordinates. A box taller than the frame is captured from its top. remeasure, a (js, arg) pair returning the
+    element's viewport rect, is read after the scroll: an element inside a sticky header keeps its own place."""
+    if zoom:
+        page.evaluate(snippets.ZOOM, zoom)
+        page.wait_for_timeout(400)
+    top_pad = sticky_top(page) + 12
+    page.evaluate('(y) => window.scrollTo(0, y)', max(0, box['y'] - pad - top_pad))
+    page.wait_for_timeout(250)
+    sy = page.evaluate('() => window.scrollY')
+    top = box['y'] - pad - sy
+    if remeasure:
+        rect = page.evaluate(remeasure[0], remeasure[1])
+        if rect:
+            box = {'x': rect['x'], 'y': rect['y'] + sy, 'w': rect['w'], 'h': rect['h']}
+            top = rect['y'] - pad
+    clip = {'x': max(0, box['x'] - pad), 'y': max(0, top), 'width': min(box['w'] + 2 * pad, config.VIEWPORT['width']),
+            'height': max(1, min(box['h'] + 2 * pad, config.VIEWPORT['height'] - max(0, top)))}
+    page.evaluate(snippets.HIDE, config.HIDE_BEFORE_CAPTURE)
+    page.mouse.move(config.VIEWPORT['width'] - 1, config.VIEWPORT['height'] // 2)
+    path = store.captures / name
+    page.screenshot(path=str(path), clip=clip, type='png')
+    if zoom:
+        page.evaluate(snippets.ZOOM, 1)
+    size = Image.open(path).size
+    store.record_capture(name, page.url, size)
+    store.log(f'captured {name} {size[0]}x{size[1]}')
+    return path
+
+
+TEXT_LOCATOR = """([t, also, maxLen, scopes, client]) => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 60 && r.height > 10; };
+    const ok = e => vis(e) && (e.innerText || '').includes(t) && (!also || e.innerText.includes(also)) && e.innerText.length <= maxLen && !['SCRIPT','STYLE'].includes(e.tagName) && !e.closest('[class*="map"], [id*="map"], .gm-style');
+    for (const scope of scopes) { const roots = scope === 'body' ? [document.body] : [...document.querySelectorAll(scope)]; const els = [];
+      for (const root of roots) for (const e of root.querySelectorAll('*')) if (ok(e)) els.push(e);
+      const e = els.sort((a, b) => a.innerText.length - b.innerText.length)[0]; if (e) { const r = e.getBoundingClientRect(); return client ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height }; } }
+    return null; }"""
+
+
+def text_shot(store, page, text, name, pad=0, zoom=None, max_len=200, also=None, scopes=('header, .page-header, [class*="header"]', 'footer, [class*="footer"]', 'body')):
+    """Capture the smallest visible element whose text carries the given string (and a second one, when given: the
+    street and the zip code for an address line), looking in the header first, then the footer, then the page, never
+    inside a map widget."""
+    if zoom:
+        page.evaluate(snippets.ZOOM, zoom)
+        page.wait_for_timeout(300)
+    box = page.evaluate(TEXT_LOCATOR, [text, also, max_len, list(scopes), False])
+    if not box and also:
+        box = page.evaluate(TEXT_LOCATOR, [text, None, max_len, list(scopes), False])
+        also = None
+    if not box:
+        if zoom:
+            page.evaluate(snippets.ZOOM, 1)
+        raise RuntimeError(f'no visible element with the text "{text}" for {name}')
+    path = box_shot(store, page, box, name, pad=pad, remeasure=(TEXT_LOCATOR, [text, also, max_len, list(scopes), True]))
+    if zoom:
+        page.evaluate(snippets.ZOOM, 1)
+    return path
+
+
+def union_shot(store, page, selectors, name, zoom=None, pad=0, max_gap=900):
+    """Capture the smallest box around one visible match per selector (the SRP's H1 and its count): the first
+    selector's first match anchors it, and each later selector contributes its match nearest that anchor when it sits
+    within max_gap px. A selector with no match is skipped."""
+    prepare(page, zoom)
+    boxes = page.evaluate("""(sels) => { const vis = x => x.getBoundingClientRect().width > 2 && x.getBoundingClientRect().height > 2;
+        const box = e => { const r = e.getBoundingClientRect(); return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height }; };
+        const out = []; let anchor = null;
+        for (const s of sels) { const m = [...document.querySelectorAll(s)].filter(vis).map(box); if (!m.length) { out.push(null); continue; }
+          const pick = anchor ? m.sort((a, b) => Math.abs(a.y - anchor.y) - Math.abs(b.y - anchor.y))[0] : m[0]; if (!anchor) anchor = pick; out.push(pick); }
+        return out; }""", selectors)
+    boxes = [b for b in boxes if b]
+    if not boxes:
+        page.evaluate(snippets.ZOOM, 1)
+        raise RuntimeError(f'no element for {name} ({selectors})')
+    keep = [boxes[0]] + [b for b in boxes[1:] if abs(b['y'] - boxes[0]['y']) < max_gap]
+    x0 = min(b['x'] for b in keep); y0 = min(b['y'] for b in keep)
+    x1 = max(b['x'] + b['w'] for b in keep); y1 = max(b['y'] + b['h'] for b in keep)
+    path = box_shot(store, page, {'x': x0, 'y': y0, 'w': x1 - x0, 'h': y1 - y0}, name, pad=pad)
+    page.evaluate(snippets.ZOOM, 1)
+    return path
 
 
 def crop(store, src_name, dst_name, box):

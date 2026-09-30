@@ -73,20 +73,32 @@ def run(store, page, platforms):
         try:
             captures.goto(page, req['group_site'], wait='domcontentloaded')
             page.wait_for_timeout(1500)
-            card = page.evaluate("""(name) => { const els = [...document.querySelectorAll('*')].filter(e => e.children.length < 40 && (e.innerText || '').includes(name) && e.innerText.length < 800);
-                const c = els.sort((a, b) => a.innerText.length - b.innerText.length)[0]; if (!c) return null; const r = c.getBoundingClientRect();
-                return { text: c.innerText.trim(), links: [...c.querySelectorAll('a[href]')].map(a => ({ text: a.innerText.trim().slice(0, 40), host: new URL(a.href).host })), box: { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height } }; }""", req.get('store') or '')
+            card = page.evaluate("""(name) => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 120 && r.height > 20; };
+                const contact = /\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}|\\b\\d{5}(-\\d{4})?\\b/;
+                const txt = e => (e.innerText && e.innerText.trim()) ? e.innerText : (e.textContent || '');
+                const els = [...document.querySelectorAll('body *')].filter(e => e.children.length < 60 && txt(e).includes(name) && txt(e).length < 1200 && contact.test(txt(e)));
+                // the visible block first (a hidden map info window carries the same card), then the shortest
+                const c = els.sort((a, b) => (vis(b) - vis(a)) || (txt(a).length - txt(b).length))[0]; if (!c) return null; const r = c.getBoundingClientRect();
+                return { text: txt(c).trim().replace(/[ \\t]+/g, ' ').replace(/\\n\\s*\\n/g, '\\n'), visible: vis(c), where: c.tagName.toLowerCase() + '.' + (c.className || '').toString().trim().split(/\\s+/).slice(0, 2).join('.'),
+                         links: [...c.querySelectorAll('a[href]')].map(a => ({ text: a.innerText.trim().slice(0, 40), href: a.href, host: new URL(a.href).host })), box: { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height } }; }""", req.get('store') or '')
             if card:
-                store.results['group_card'] = {'text': card['text'][:800], 'links': card['links'], 'capture': None,
+                store.results['group_card'] = {'text': card['text'][:800], 'where': card['where'], 'visible': card['visible'], 'links': card['links'], 'capture': None,
                                                'address': None, 'hours': None, 'phone': None, 'new_count': None}
                 m = re.search(r'\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}', card['text'])
                 if m:
                     store.results['group_card']['phone'] = m.group(0)
-                try:
-                    captures.shot(store, page, 'group_card.png', clip={'x': max(0, card['box']['x'] - 10), 'y': max(0, card['box']['y'] - 10), 'width': card['box']['w'] + 20, 'height': card['box']['h'] + 20})
-                    store.results['group_card']['capture'] = 'captures/group_card.png'
-                except Exception as e:
-                    store.not_captured('group_card.png', str(e))
+                m = re.search(r'(\d+\s[^\n]*?,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)', card['text'].replace('\n', ' '))
+                if m:
+                    store.results['group_card']['address'] = re.sub(r'\s+', ' ', m.group(1)).strip()
+                store.results['group_card']['url'] = page.url
+                if card['visible']:
+                    try:
+                        captures.box_shot(store, page, card['box'], 'group_card.png', pad=10)
+                        store.results['group_card']['capture'] = 'captures/group_card.png'
+                    except Exception as e:
+                        store.not_captured('group_card.png', str(e))
+                else:
+                    store.not_captured('group_card.png', f'the group site\'s card for this store is in a hidden block ({card["where"]}); its text is recorded')
             else:
                 pf['notes'].append('the group site shows no card for this store')
         except Exception as e:
