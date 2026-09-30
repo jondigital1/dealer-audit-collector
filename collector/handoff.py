@@ -57,7 +57,11 @@ def send(paths):
     if config.HANDOFF_MODE == 'taildrop':
         target, note = taildrop_target()
         for p in paths:
-            subprocess.run(['tailscale', 'file', 'cp', str(p), f'{target}:'], check=True)
+            res = subprocess.run(['tailscale', 'file', 'cp', str(p), f'{target}:'], capture_output=True, text=True)
+            if res.returncode != 0:
+                err = (res.stderr or res.stdout).strip()
+                hint = ' Run once on the VM: sudo tailscale set --operator=$USER' if 'operator' in err or 'access denied' in err.lower() else ''
+                return f'Taildrop could not send {p.name} to {target}: {err[:200]}.{hint} The zips stay in {p.parent}.'
         return f'sent {len(paths)} file(s) to {target} by Taildrop (they land in its Downloads)' + (f'; note: {note}' if note else '')
     config.HANDOFF_DIR.mkdir(parents=True, exist_ok=True)
     for p in paths:
