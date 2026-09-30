@@ -19,13 +19,15 @@ NOT_SELLING = re.compile(r'msrp|fee|discount|savings|rebate|payment|/mo|month|ap
 PROMO = re.compile(r'closeout|model year|sale event|clearance|sales event|text .{2,12} to \d{5}|special offer|bonus cash', re.I)
 MOBILE_UA = 'Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.0.0 Mobile Safari/537.36'
 VEHICLE_DETAIL = """() => { const t = (document.body.innerText || ''); const h1 = document.querySelector('h1');
-  const stock = (t.match(/Stock\\s*(?:#|No\\.?|Number)?\\s*:?\\s*([A-Z0-9-]{3,20})/i) || [])[1] || null;
+  // the stock number follows "Stock" with a colon or a hash ("In Stock" is not it)
+  const stock = (t.match(/Stock\\s*(?:#|No\\.?|Number)?\\s*[:#]\\s*([A-Z0-9-]{3,20})/i) || t.match(/Stock\\s*#\\s*([A-Z0-9-]{3,20})/i) || [])[1] || null;
   // the VIN: schema.org first, then the og:title, then the page's own "VIN# X" (Dealer.com prints it flush against "Stock#")
   let vin = null;
   for (const sc of document.querySelectorAll('script[type="application/ld+json"]')) { const m = (sc.textContent || '').match(/vehicleIdentificationNumber"\\s*:\\s*"([A-HJ-NPR-Z0-9]{17})"/); if (m) { vin = m[1]; break; } }
   if (!vin) { const og = document.querySelector('meta[property="og:title"], meta[name="og:title"]'); const m = og && (og.content || '').match(/VIN:?\\s*([A-HJ-NPR-Z0-9]{17})/i); if (m) vin = m[1]; }
   if (!vin) { const m = t.match(/VIN\\s*(?:#|:)?\\s*([A-HJ-NPR-Z0-9]{17})/i); if (m) vin = m[1]; }
-  return { title: h1 ? (h1.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 120) : document.title.slice(0, 120), stock, vin }; }"""
+  const tEl = h1 || document.querySelector('[class*="vehicle-title"], [class*="vdp-title"], [class*="vehicleTitle"], h2');
+  return { title: tEl && (tEl.innerText || '').trim() ? (tEl.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 120) : document.title.slice(0, 120), stock, vin }; }"""
 
 
 def price_label(p):

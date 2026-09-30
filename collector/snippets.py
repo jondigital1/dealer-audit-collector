@@ -34,11 +34,11 @@ SEO_META = """async () => {
 # Vehicle links on the SRP: the skill's selector (a[href*="/inventory/"]) first; when it matches nothing, the platform's
 # own VDP link pattern (Dealer.com links VDPs as /new/Make/... and /used/Make/..., the fixture's note), recorded as such
 SRP_LINKS = """() => {
-  const count = sel => { const inv = [...document.querySelectorAll(sel)].map(a => a.getAttribute('href') || '').filter(h => !/\\/index\\.htm|\\/specials|promotions|research/i.test(h));
+  const count = sel => { const inv = [...document.querySelectorAll(sel)].map(a => a.getAttribute('href') || '').filter(h => !/\\/index\\.htm|\\/specials|promotions|research|searchnew|searchused/i.test(h));
     return { selector: sel, links: inv.length, unique: new Set(inv.map(h => h.split('?')[0])).size, http: inv.filter(h => h.startsWith('http://')).length, example: inv.find(h => h.startsWith('http://')) || '' }; };
   const skill = count('a[href*="/inventory/"]');
   if (skill.links) return { ...skill, skill_selector_links: skill.links };
-  for (const sel of ['a[href^="/new/"], a[href*="/new/"][href$=".htm"]', 'a[href*="/vehicle/"], a[href*="/vehicles/"]', 'a[href*="/vdp/"], a[href*="/detail"]', 'a[href*="vin="], a[href*="/vin/"]']) {
+  for (const sel of ['a[href^="/new/"], a[href*="/new/"][href$=".htm"]', 'a[href*="/vehicle/"], a[href*="/vehicles/"]', 'a[href*="/vdp/"], a[href*="/detail"]', 'a[href*="vin="], a[href*="/vin/"]', 'a[href*="/new-"]']) {
     const c = count(sel); if (c.links) return { ...c, skill_selector_links: 0 }; }
   return { ...skill, skill_selector_links: 0 };
 }"""
@@ -51,9 +51,13 @@ VDP_OFFSITE_LINKS = """() => [...document.querySelectorAll('a[href]')]
 # Every link in the main menu: the top item it sits under, its label, host and path (references/04_capture.md: read
 # every link in the main menu with a script, then open each one with a real click or navigation)
 MENU_LINKS = """() => {
-  const nav = document.querySelector('nav, [role="navigation"], header') || document.body;
+  // every nav-like container: DealerOn keeps the dropdown links outside the header element (Natchez Nissan, Sep 30, 2026)
+  const roots = [...document.querySelectorAll('nav, [role="navigation"], header, [id*="nav"], [class*="navbar"], ul[class*="nav"], [class*="main-menu"], [class*="mainmenu"], [class*="megamenu"], [class*="mega-menu"]')]
+    .filter(r => !r.closest('footer, [class*="footer"]'));
+  const anchors = []; const seenEl = new Set();
+  for (const r of (roots.length ? roots : [document.body])) for (const a of r.querySelectorAll('a[href]')) { if (seenEl.has(a)) continue; seenEl.add(a); anchors.push(a); }
   const out = [];
-  for (const a of nav.querySelectorAll('a[href]')) {
+  for (const a of anchors) {
     const href = a.getAttribute('href') || '';
     if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:') || href === '?' || href === '/?' || href.startsWith('sms:')) continue;
     let u; try { u = new URL(a.href); } catch (e) { continue; }
@@ -142,20 +146,28 @@ VDP_STACK = """() => {
     raw.push({ text: t, label: label.slice(0, 40), value: parseFloat(t.match(money)[0].replace(/[$,\\s]/g, '')), negative: /^-/.test(t.match(money)[0]), y: Math.round(r.top + scrollY), x: Math.round(r.left), size: parseFloat(getComputedStyle(e).fontSize), weight: getComputedStyle(e).fontWeight });
   }
   raw.sort((a, b) => a.y - b.y || a.x - b.x);
-  const prices = raw.filter((p, i) => !raw.slice(0, i).some(q => q.value === p.value && Math.abs(q.y - p.y) < 8));
+  // one entry per figure: the same value within 14 px is one row (DealerOn prints "MSRP: $51,805" and its inner
+  // "$51,805" span); the innermost carries the price's own font size, the outer the label
+  const prices = [];
+  for (const p of raw) { const g = prices.find(q => q.value === p.value && Math.abs(q.y - p.y) < 14); if (!g) { prices.push({ ...p }); continue; }
+    if (p.text.length < g.text.length) { g.size = p.size; g.weight = p.weight; g.text = p.text; } if (!g.label && p.label) g.label = p.label; if (p.label && p.label.length > (g.label || '').length && !money.test(p.label)) g.label = p.label; }
   const labeled = prices.filter(p => /price|msrp|fee|discount|savings|rebate|payment|total|offer|cash|retail|invoice|sale/i.test(p.label));
   let stack = [];
   if (labeled.length) { const top = labeled[0].y; stack = prices.filter(p => p.y >= top - 40 && p.y <= top + 700); }
   else stack = prices.slice(0, 8);
-  let big = null; for (const p of stack) if (!big || p.size > big.size || (p.size === big.size && p.value > big.value)) big = p;
-  for (const p of stack) p.biggest = p === big;
+  const selling = /price|selling|internet|sale|final|e-?price|retail/i, notSelling = /msrp|fee|discount|savings|rebate|payment|\\/mo|month|apr|down|cash|bonus|loyalty|grad|military/i;
+  let big = null; for (const p of stack) { if (!big || p.size > big.size) { big = p; continue; }
+    if (p.size === big.size) { const ps = selling.test(p.label) && !notSelling.test(p.label), bs = selling.test(big.label) && !notSelling.test(big.label); if (ps && !bs) big = p; else if (ps === bs && p.value > big.value) big = p; } }
+  const tied = stack.filter(p => big && p !== big && p.size === big.size);
+  for (const p of stack) { p.biggest = p === big; if (p === big && tied.length) p.size_tie_with = tied.map(t => t.label || t.text).slice(0, 3); }
   const isCta = e => /btn|button|cta/i.test(e.className) || e.tagName === 'BUTTON' || (e.getAttribute('role') === 'button');
   const buttons = [...document.querySelectorAll('a, button, [role="button"]')].filter(vis).filter(isCta).map(e => { let host = ''; try { host = e.href ? new URL(e.href).host : ''; } catch (x) {} const r = e.getBoundingClientRect();
       return { text: clean(e.innerText).slice(0, 50), host, href: (e.href || '').slice(0, 200), y: Math.round(r.top + scrollY), h: Math.round(r.height), tel: /^tel:/.test(e.getAttribute('href') || ''), target: e.target || '' }; })
     .filter(c => c.text || c.tel);
   const seenB = new Set(); const all = buttons.filter(b => { const k = b.text + '@' + b.y; if (seenB.has(k)) return false; seenB.add(k); return true; });
   let ctas = [];
-  if (stack.length) { const top = Math.min(...stack.map(p => p.y)), bot = Math.max(...stack.map(p => p.y)); ctas = all.filter(b => b.y >= top - 120 && b.y <= bot + 650 && !/track price|^save$|^share$|compare|window sticker|full specs|^details$|highlights|full review/i.test(b.text)); }
+  const priceLabels = new Set(stack.map(p => (p.label || '').toLowerCase()).filter(Boolean));
+  if (stack.length) { const top = Math.min(...stack.map(p => p.y)), bot = Math.max(...stack.map(p => p.y)); ctas = all.filter(b => b.y >= top - 120 && b.y <= bot + 650 && !/track price|^save$|^share$|compare|window sticker|full specs|^details$|highlights|full review|load more|photos?$|^ext\\.?$|^int\\.?$/i.test(b.text) && !priceLabels.has(b.text.toLowerCase()) && !money.test(b.text)); }
   // tel links hidden on desktop but in the same template (Call Now shows only on a phone)
   const hiddenTel = [...document.querySelectorAll('a[href^="tel:"]')].filter(e => !vis(e)).map(e => ({ text: clean(e.innerText).slice(0, 40), number: (e.getAttribute('href') || '').replace('tel:', '') })).slice(0, 6);
   return { prices: stack, other_prices: prices.filter(p => !stack.includes(p)).slice(0, 12), ctas, buttons_all: all.slice(0, 60), hidden_tel: hiddenTel, host: location.host };
@@ -185,7 +197,9 @@ VDP_MOBILE = """({ priceTexts, ctaTexts, popupSelectors }) => {
 }"""
 
 # The vehicle photo currently showing in the VDP's gallery: the visible image nearest the frame's center
-VDP_PHOTO = """() => { const imgs = [...document.querySelectorAll('img')].filter(i => { const r = i.getBoundingClientRect(); return r.width >= 300 && r.height >= 180 && r.top + scrollY < 2200 && i.closest('[id*="carousel"], [class*="carousel"], [class*="gallery"], [class*="media"], [class*="slider"], [class*="photo"]'); });
+VDP_PHOTO = """() => { const isBig = i => { const r = i.getBoundingClientRect(); return r.width >= 300 && r.height >= 180 && r.top + scrollY < 2200; };
+  let imgs = [...document.querySelectorAll('img')].filter(i => isBig(i) && i.closest('[id*="carousel"], [class*="carousel"], [class*="gallery"], [class*="media"], [class*="slider"], [class*="photo"], [class*="swiper"], [class*="slick"]'));
+  if (!imgs.length) imgs = [...document.querySelectorAll('img')].filter(i => isBig(i) && !i.closest('header, nav, footer'));
   if (!imgs.length) return null; const cx = innerWidth / 2; const area = i => i.getBoundingClientRect().width * i.getBoundingClientRect().height; const big = Math.max(...imgs.map(area));
   const top = imgs.filter(i => area(i) >= big * 0.6); top.sort((a, b) => Math.abs((a.getBoundingClientRect().left + a.getBoundingClientRect().right) / 2 - cx) - Math.abs((b.getBoundingClientRect().left + b.getBoundingClientRect().right) / 2 - cx)); imgs.splice(0, imgs.length, ...top);
   const r = imgs[0].getBoundingClientRect(); return { x: Math.max(0, r.left + scrollX), y: r.top + scrollY, w: Math.min(r.width, innerWidth - Math.max(0, r.left)), h: r.height, src: (imgs[0].currentSrc || imgs[0].src || '').slice(0, 160), alt: (imgs[0].getAttribute('alt') || '').slice(0, 80) }; }"""
@@ -301,7 +315,7 @@ MENU_OUTLINE = """([label, href]) => { for (const a of document.querySelectorAll
 # The next priced vehicle card on the SRP after a given VDP (the swap rule when a VDP will not render)
 NEXT_VEHICLE = """(skipHref) => {
   const money = /\\$\\s?\\d[\\d,]{3,}/;
-  const sels = 'a[href*="/new/"], a[href*="/inventory/"], a[href*="/vehicle"], a[href*="/vdp"], a[href*="vin="], a[href*="/detail"]';
+  const sels = 'a[href*="/new/"], a[href*="/inventory/"], a[href*="/vehicle"], a[href*="/vdp"], a[href*="vin="], a[href*="/detail"], a[href*="/new-"]';
   const skip = (skipHref || '').split('?')[0]; let passed = false; const seen = new Set();
   for (const a of document.querySelectorAll(sels)) {
     const h = a.href.split('?')[0]; if (/specials|promotions|research|inventory\\/index|new-inventory\\/index/i.test(a.getAttribute('href') || '')) continue;

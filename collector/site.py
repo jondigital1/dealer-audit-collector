@@ -41,9 +41,13 @@ def pick_new_srp(links):
 # dollar figure (DDC wraps the link in a media div with no price, so the anchor's closest card is not enough)
 FIRST_VEHICLE = """() => {
   const money = /\\$\\s?\\d[\\d,]{3,}/;
-  const sels = 'a[href*="/new/"], a[href*="/inventory/"], a[href*="/vehicle"], a[href*="/vdp"], a[href*="vin="], a[href*="/detail"]';
-  for (const a of document.querySelectorAll(sels)) {
-    if (/specials|promotions|research|inventory\\/index|new-inventory\\/index/i.test(a.getAttribute('href') || '')) continue;
+  // Dealer.com links VDPs as /new/Make/...htm, DealerOn as /new-<town>-<year>-<make>-<model>-<VIN>; a VIN at the end of a
+  // path marks a vehicle link on any platform
+  const sels = 'a[href*="/new/"], a[href*="/inventory/"], a[href*="/vehicle"], a[href*="/vdp"], a[href*="vin="], a[href*="/detail"], a[href*="/new-"]';
+  const vinEnd = /[A-HJ-NPR-Z0-9]{17}\\/?$/;
+  const all = [...document.querySelectorAll(sels)]; for (const a of document.querySelectorAll('a[href]')) if (vinEnd.test(a.href.split('?')[0]) && !all.includes(a)) all.push(a);
+  for (const a of all) {
+    if (/specials|promotions|research|inventory\\/index|new-inventory\\/index|searchnew|searchused|new-vehicles\\/?$|new-inventory\\/?$/i.test(a.getAttribute('href') || '')) continue;
     let c = a, hops = 0;
     while (c && c !== document.body && hops < 8) { const t = (c.innerText || ''); if (money.test(t) && t.length < 2500) return { href: a.href, text: t.trim().replace(/\\s+/g, ' ').slice(0, 220), tag: c.tagName, cls: (c.className || '').toString().slice(0, 60) }; c = c.parentElement; hops++; }
   }
@@ -409,16 +413,17 @@ def contact_info(store, page):
 
 PAGES = [
     # (key, menu pattern, fallback paths, capture name)
-    ('specials_service', r'service (&|and) parts specials|service specials|service offers|service coupons', ['/specials/service.htm', '/service-specials/', '/promotions/service/'], 'specials_service.png'),
-    ('specials_new', r'new (vehicle |car )?specials|new specials|new (vehicle )?(special )?offers|vehicle specials', ['/specials/new.htm', '/new-specials/', '/new-vehicle-specials/', '/specials/new-vehicle-specials/'], 'specials_new.png'),
-    ('schedule_service', r'schedule (service|an appointment)|service appointment', ['/service/schedule-service.htm', '/schedule-service/'], 'schedule_service.png'),
-    ('trade_in', r'value (your|my) trade|trade[- ]in', ['/value-your-trade.htm', '/trade-in/'], 'trade_in.png'),
-    ('finance_app', r'apply for (financing|credit)|finance application|credit app', ['/finance/apply-for-financing.htm', '/financing/apply/'], 'finance_app.png'),
-    ('about_us', r'about us|about', ['/about-us.htm', '/about/', '/dealership/about.htm'], 'about_us.png'),
-    ('finance', r'^finance|financing|finance center', ['/financing/index.htm', '/finance/'], 'finance.png'),
-    ('lease', r'lease', ['/lease/', '/financing/lease.htm'], 'lease.png'),
-    ('hours_page', r'hours (&|and) directions|hours', ['/dealership/directions.htm', '/hours-directions/'], 'hours_page.png'),
-    ('blog', r'blog|news', ['/blog/', '/news/'], 'blog.png'),
+    # (key, menu pattern, fallback paths: Dealer.com's, Dealer Inspire's, DealerOn's .aspx pages, capture name)
+    ('specials_service', r'service (&|and) parts specials|service specials|service offers|service coupons', ['/specials/service.htm', '/service-specials/', '/promotions/service/', '/service-parts-specials.html', '/service-specials.aspx'], 'specials_service.png'),
+    ('specials_new', r'new (vehicle |car )?specials|new specials|new (vehicle )?(special )?offers|vehicle specials|^specials$', ['/specials/new.htm', '/new-specials/', '/new-vehicle-specials/', '/specials/new-vehicle-specials/', '/specials.aspx', '/newspecials.aspx'], 'specials_new.png'),
+    ('schedule_service', r'schedule (service|an appointment)|service appointment|^service$', ['/service/schedule-service.htm', '/schedule-service/', '/serviceappmt.aspx', '/schedule-service.aspx'], 'schedule_service.png'),
+    ('trade_in', r'value (your|my) trade|trade[- ]in|^trade$', ['/value-your-trade.htm', '/trade-in/', '/trade', '/tradein.aspx', '/value-your-trade/'], 'trade_in.png'),
+    ('finance_app', r'apply for (financing|credit)|finance application|credit app|get pre-?approved|pre-?qualif', ['/finance/apply-for-financing.htm', '/financing/apply/', '/financeapp.aspx', '/finance-application.aspx', '/get-pre-qualified/'], 'finance_app.png'),
+    ('about_us', r'about us|about|our dealership', ['/about-us.htm', '/about/', '/dealership/about.htm', '/aboutus.aspx', '/about-us/'], 'about_us.png'),
+    ('finance', r'^finance|financing|finance center|finance department', ['/financing/index.htm', '/finance/', '/finance.aspx'], 'finance.png'),
+    ('lease', r'lease', ['/lease/', '/financing/lease.htm', '/lease.aspx'], 'lease.png'),
+    ('hours_page', r'hours (&|and) directions|hours|^map$|directions', ['/dealership/directions.htm', '/hours-directions/', '/hours.aspx', '/contact-us/', '/contactus.aspx'], 'hours_page.png'),
+    ('blog', r'blog|news', ['/blog/', '/news/', '/blog'], 'blog.png'),
 ]
 
 
@@ -545,7 +550,7 @@ def pages(store, page):
         except Exception as e:
             store.not_captured(f'specials page {l["label"]}', str(e))
     # every page the Research menu opens (model research pages), and research pages elsewhere in the menu by path
-    research = [l for l in links if (re.search(r'research|model', l['top'] or '', re.I) or '/research/' in l['path']) and l['host'] == urlparse(home).netloc][:12]
+    research = [l for l in links if (re.search(r'research|model', l['top'] or '', re.I) or re.search(r'research', l['path'] + ' ' + l['label'], re.I)) and l['host'] == urlparse(home).netloc][:12]
     for l in research:
         if store.over_soft_budget():
             store.not_captured(f'research page {l["label"]}', 'soft time budget reached')
