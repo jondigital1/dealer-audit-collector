@@ -26,10 +26,25 @@ per session) and pulls what it needs in one call per zip.
 
 Two ways to mirror it; start with A, move to B when the collector runs on its own.
 
-**A. Taildrop (no setup).** Both machines are on your tailnet. From the VM:
-`tailscale file cp <store>.zip jon-d1-pc:` sends the zip to the Desktop PC, where the Tailscale client saves it in
+**A. Taildrop (two settings, then no setup).** Both machines are on your tailnet. From the VM:
+`tailscale file cp <store>.zip jon-d1-pc-2:` sends the zip to the Desktop PC, where the Tailscale client saves it in
 `C:\Users\jon\Downloads`. The `handoff` command does this when `HANDOFF_MODE=taildrop`. Downloads is the folder the
-session connects.
+session connects. Two things found on Sep 30, 2026:
+
+1. The Tailscale daemon only lets root, or a set operator, send files. Once on the VM:
+   `sudo tailscale set --operator=$USER`. Without it `tailscale file cp` says "Access denied: file access denied"
+   and the `handoff` command reports that with the fix.
+2. The Desktop PC's name on the tailnet is `jon-d1-pc-2` (its MagicDNS name, as `tailscale status` lists it), not
+   `jon-d1-pc`. Set `TAILDROP_TARGET=jon-d1-pc-2` in `.env`. When the configured name is not on the tailnet but a
+   Windows node with that name plus a suffix is, `handoff` sends there and says so.
+
+Windows Taildrop never overwrites: a repeat arrives as `name (1).zip`, so every send writes its own manifest,
+`manifest_<YYYY-MM-DD_HHMM>ET.json`. The file the session should trust is the newest manifest.
+
+To send a file the other way (a Chrome-path facts.json for `compare_runs.py`), on the PC right-click the file,
+choose Show more options, then Send with Tailscale, and pick `agents`; or in PowerShell
+`& "C:\Program Files\Tailscale\tailscale.exe" file cp "$env:USERPROFILE\Downloads\facts.json" agents:`.
+On the VM, `tailscale file get ~/inbox` fetches what was sent.
 
 **B. Syncthing (continuous).** Install Syncthing on the Desktop PC (syncthing.net, the Windows installer runs it as a
 service with a web page at localhost:8384) and on the VM (`docker run -d --name syncthing --restart unless-stopped
@@ -39,7 +54,7 @@ folder to the Desktop PC as `C:\Users\jon\AuditCaptures`, send-only from the VM.
 into `~/audit-handoff` when `HANDOFF_MODE=folder`, and Syncthing does the rest. `C:\Users\jon\AuditCaptures` is then
 the folder the session connects.
 
-Either way the Desktop PC's folder holds `manifest.json` and one zip per store, `<domain>_<YYYY-MM-DD>.zip`.
+Either way the Desktop PC's folder holds a manifest per send and one zip per store, `<domain>_<YYYY-MM-DD>.zip`.
 
 ## 3. The VM
 
