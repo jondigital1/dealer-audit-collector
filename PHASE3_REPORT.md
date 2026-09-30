@@ -1,5 +1,7 @@
 # Phase 3 report: the collector, built and gated on the agents VM (Sep 30, 2026)
 
+Also a shared doc: https://claude.ai/code/artifact/3e5cfa9e-7fba-438e-a46d-14f2359c702a
+
 The collector runs. It gathers a store's Tier 1 evidence headless, writes results.json, captures/ and a contact sheet,
 and hands the zip to the Desktop PC by Taildrop. It was built check by check against Bay Hyundai (Dealer.com, the
 golden fixture) and gated on Hanania Hyundai of Orange Park (Dealer Inspire) against a same-day Chrome-path
@@ -28,6 +30,15 @@ Akamai edge answers Playwright's default headless shell with a 403 Access Denied
 its new headless mode normally. The collector launches the full browser with a desktop Chrome user agent at the
 browser's own version. `platforms.json` holds the log; the markers are the census's verified patterns.
 
+| Platform | Store tested | Loads headless | Time to DOM |
+| --- | --- | --- | --- |
+| Dealer.com | bayhyundai.com | yes | 1.1 s |
+| DealerOn | longotoyota.com | yes | 0.9 s |
+| Dealer Inspire | bayridgehonda.com | yes | 1.9 s |
+| Sincro | arenabuickgmc.com | yes | 21 s |
+| pagespeed.web.dev | | yes | 0.5 s |
+| bing.com/maps | | yes, panel renders | 0.6 s |
+
 ## 3. PageSpeed
 
 - The report page first (Jonathan, Sep 30): it exposes both results as `window.__LIGHTHOUSE_MOBILE_JSON__` and
@@ -52,8 +63,11 @@ time the pop-up the skill's way (two loads, storage cleared between, then the SR
 the second pass and marks the store chrome_only. `tests/test_popups_blocked.py` proves both branches with a local
 server playing a 403 page, a challenge page and a real page. Everything else keeps the flag.
 
-Bay Hyundai: Gubagoo's invite (300 x 364, "Jessica, Bay Hyundai: I'm online and happy to help!") at 6.5 s and 6.2 s
-against 7.2 s and 6.5 s in Chrome on Sep 27; on the SRP at 6.6 s against 7.0 s.
+| Bay Hyundai, Gubagoo invite (300 x 364) | Collector, Sep 30 | Chrome, Sep 27 |
+| --- | --- | --- |
+| First load: opens / load event | 6.5 s / 4.1 s | 7.2 s / 2.4 s |
+| Second load, storage cleared | 6.2 s / 1.7 s | 6.5 s / 1.7 s |
+| On the SRP | 6.6 s | 7.0 s |
 
 ## 5. The gate: Hanania Hyundai of Orange Park, Sep 30
 
@@ -124,3 +138,4 @@ collector never touched the Dealer Audit Requests sheet or the SEO Audits folder
 - A blank block beside copy (not full width) is only in the capture, not in the band scan; Claude reads the shot.
 - SRP vehicle-link counts differ by method (the collector's unique count against the Chrome read's), only the http://
   count is the finding.
+- The one-off VM settings (the Tailscale operator, the .env target) belong in SETUP.md.
