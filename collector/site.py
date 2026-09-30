@@ -381,7 +381,7 @@ def contact_info(store, page):
 PAGES = [
     # (key, menu pattern, fallback paths, capture name)
     ('specials_service', r'service (&|and) parts specials|service specials|service offers|service coupons', ['/specials/service.htm', '/service-specials/', '/promotions/service/'], 'specials_service.png'),
-    ('specials_new', r'new (vehicle )?specials|new specials|special offers', ['/specials/new.htm', '/new-specials/'], 'specials_new.png'),
+    ('specials_new', r'new (vehicle |car )?specials|new specials|new (vehicle )?(special )?offers|vehicle specials', ['/specials/new.htm', '/new-specials/', '/new-vehicle-specials/', '/specials/new-vehicle-specials/'], 'specials_new.png'),
     ('schedule_service', r'schedule (service|an appointment)|service appointment', ['/service/schedule-service.htm', '/schedule-service/'], 'schedule_service.png'),
     ('trade_in', r'value (your|my) trade|trade[- ]in', ['/value-your-trade.htm', '/trade-in/'], 'trade_in.png'),
     ('finance_app', r'apply for (financing|credit)|finance application|credit app', ['/finance/apply-for-financing.htm', '/financing/apply/'], 'finance_app.png'),
