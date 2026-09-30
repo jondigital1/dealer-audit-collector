@@ -167,6 +167,61 @@ def srp_links(store, page):
         store.check('srp_links', 'failed', str(e))
 
 
+def classify_landing(page, resp, dealer, href_path, group_host=None, sisters=()):
+    """Where a real navigation landed: 404, home_redirect, empty, ok, group_site, sister_site, third_party or offsite."""
+    landed = urlparse(page.url)
+    lh = domain_of(page.url)
+    body = page.evaluate('() => (document.body.innerText || "").slice(0, 20000)') if lh == dealer else ''
+    if (resp and resp.status == 404) or NOT_FOUND.search(page.title() or ''):
+        return '404', None
+    if lh == dealer and landed.path in ('', '/') and href_path not in ('', '/'):
+        return 'home_redirect', None
+    if lh == dealer and EMPTY_PAGE.search(body) and not re.search(r'inventory/index|all-inventory', landed.path):
+        return 'empty', EMPTY_PAGE.search(body).group(0).strip()
+    if lh == dealer:
+        return 'ok', None
+    if group_host and lh == group_host:
+        return 'group_site', None
+    if lh in sisters:
+        return 'sister_site', None
+    if any(lh.endswith(t) for t in THIRD_PARTY):
+        return 'third_party', None
+    return 'offsite', None
+
+
+def crawl_links(store, page, links, dealer, prefix, max_links=24):
+    """Open each link with a real navigation and classify where it lands; the landed page captured when it is not ok."""
+    out = []
+    start_url = page.url
+    for l in links[:max_links]:
+        if store.over_budget():
+            store.not_captured(f'{prefix} links', 'store time budget reached; the rest are unopened')
+            break
+        item = {'label': l.get('label'), 'href': l.get('href'), 'path': l.get('path'), 'status': None, 'result': None, 'landed_host': None, 'landed_path': None, 'capture_dest': None}
+        try:
+            resp = captures.goto(page, l['href'], wait='domcontentloaded')
+            page.wait_for_timeout(1000)
+            item['status'] = resp.status if resp else None
+            item['landed_host'] = urlparse(page.url).netloc
+            item['landed_path'] = urlparse(page.url).path
+            item['result'], note = classify_landing(page, resp, dealer, l.get('path') or '')
+            if note:
+                item['empty_text'] = note
+            if item['result'] != 'ok':
+                name = f'dest_{prefix}_{slug(l.get("label") or l.get("path") or "link")}.png'
+                captures.shot(store, page, name, full_page=False, zoom=config.DEALER_ZOOM)
+                item['capture_dest'] = f'captures/{name}'
+        except Exception as e:
+            item['result'] = 'error'
+            item['status'] = type(e).__name__
+        out.append(item)
+    try:
+        captures.goto(page, start_url, wait='domcontentloaded')
+    except Exception:
+        pass
+    return out
+
+
 def menu_crawl(store, page, max_items=72):
     """Step 10: every main-menu link opened with a real navigation, its result classified, the menu and the landed
     page captured for anything that is not ok. Never judged by a fetch (a firewall answers a burst with 403 pages)."""
@@ -579,7 +634,14 @@ def pages(store, page):
             captures.shot(store, page, name, full_page=True, zoom=config.DEALER_ZOOM)
             text = page.evaluate('() => document.body.innerText')
             years = sorted(set(re.findall(r'\b(20[2-3]\d)\b', text)))
-            r['cx'].append({'page': 'research', 'label': l['label'], 'url': page.url, 'capture': f'captures/{name}', 'model_years': years, 'first_300': re.sub(r'\s+', ' ', text)[:300]})
+            entry = {'page': 'research', 'label': l['label'], 'url': page.url, 'capture': f'captures/{name}', 'model_years': years, 'first_300': re.sub(r'\s+', ' ', text)[:300]}
+            # every model card's link on the page (LEARN MORE, View Details, the model name), opened the way the menu is
+            # crawled: 404, home redirect, off-site, or ok. Natchez Nissan's LEAF card opened /2024-nissan-leaf.html, a 404.
+            cards = page.evaluate(snippets.RESEARCH_CARD_LINKS)
+            entry['card_links'] = crawl_links(store, page, cards, dealer=domain_of(home), prefix=f'research_{slug(l["label"])}', max_links=24)
+            r['cx'].append(entry)
+            if entry['card_links']:
+                r.setdefault('research_links', []).extend([{**c, 'research_page': page.url if False else entry['url']} for c in entry['card_links']])
         except Exception as e:
             store.not_captured(f'research page {l["label"]}', str(e))
     store.check('pages', 'ok')

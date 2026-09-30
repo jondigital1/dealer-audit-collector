@@ -101,6 +101,12 @@ def apply(store):
             F('broken_link', 'Broken Link', it['label'], None, f'The {it["label"]} menu link opens a 404 page' if it['result'] == '404' else f'The {it["label"]} menu link sends shoppers back to the home page', ev)
         elif it['result'] in ('offsite', 'third_party', 'group_site', 'sister_site'):
             F('offsite_link', 'Off-Site Link', it['label'], None, f'The {it["top"] or it["label"]} menu sends shoppers to {it["landed_host"]}', ev)
+    for rl in r.get('research_links') or []:
+        ev = [c for c in (rl.get('capture_dest'),) if c]
+        if rl.get('result') in ('404', 'home_redirect'):
+            F('broken_link', 'Broken Link', rl.get('label'), None, f'The {rl.get("label")} research link opens a 404 page' if rl['result'] == '404' else f'The {rl.get("label")} research link sends shoppers back to the home page', ev)
+        elif rl.get('result') in ('offsite', 'third_party'):
+            F('offsite_link', 'Off-Site Link', rl.get('label'), None, f'The {rl.get("label")} research link sends shoppers to {rl.get("landed_host")}', ev)
     # hours and address: Bing against the site (Google's come from Claude's Chrome read)
     ah = r.get('address_hours') or {}
     site_addr, bing_addr = address_key(ah.get('site_address')), address_key(ah.get('bing_address'))

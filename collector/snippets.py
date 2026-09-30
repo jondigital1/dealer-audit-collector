@@ -363,3 +363,15 @@ HOURS_UNION = """() => { const vis = e => { const r = e.getBoundingClientRect();
   const page = document.documentElement.scrollHeight; let target = anc; while (target && target !== document.body && target.getBoundingClientRect().height > Math.min(2200, page * 0.6)) target = blocks[0];
   const r = (target || blocks[0]).getBoundingClientRect();
   return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height, blocks: blocks.length, schedules: blocks.map(b => (b.innerText || '').replace(/\\s+/g, ' ').slice(0, 60)) }; }"""
+
+# The model cards' links on a research or showroom page: LEARN MORE, View Details, Explore, or the card's title link,
+# one per destination, in page order
+RESEARCH_CARD_LINKS = """() => { const out = []; const seen = new Set();
+  const cards = [...document.querySelectorAll('[class*="card"], [class*="model"], [class*="vehicle"], [class*="research"], article, li, .col, [class*="col-"]')].filter(e => e.querySelector('a[href]') && e.querySelector('img, picture, [style*="background"]') && e.getBoundingClientRect().width > 150 && e.getBoundingClientRect().height > 100);
+  const label = a => (a.innerText || a.getAttribute('aria-label') || a.getAttribute('title') || '').trim().replace(/\\s+/g, ' ');
+  for (const c of cards) { const links = [...c.querySelectorAll('a[href]')].filter(a => !/^(#|javascript:|tel:|mailto:)/.test(a.getAttribute('href') || ''));
+    const pick = links.find(a => /learn more|view details|explore|research|details|view/i.test(label(a))) || links.find(a => label(a).length > 2) || links[0]; if (!pick) continue;
+    const href = pick.href.split('#')[0]; if (seen.has(href)) continue; seen.add(href);
+    const title = (c.querySelector('h1,h2,h3,h4,h5,[class*="title"],[class*="name"]') || {}).innerText || '';
+    out.push({ label: (title.trim().split('\\n')[0] || label(pick)).slice(0, 60) + (label(pick) && title.trim() ? ' (' + label(pick).slice(0, 20) + ')' : ''), href, path: new URL(href).pathname }); }
+  return out.filter(o => !/searchnew|searchused|inventory\\/index|new-vehicles\\/?$/i.test(o.path)).slice(0, 40); }"""
