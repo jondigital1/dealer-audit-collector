@@ -18,6 +18,10 @@ SEO_META = """async () => {
   const inMap = i => !!i.closest('.gm-style, [class*="map-dynamic"], [class*="google-map"], [class*="googlemap"], [id*="google-map"], [class*="mapbox"], [class*="leaflet"]');
   const im = all.filter(i => !inMap(i));
   const cnt = arr => ({ images: arr.length, noAlt: arr.filter(i => !(i.getAttribute('alt') || '').trim()).length, noTitle: arr.filter(i => !(i.getAttribute('title') || '').trim()).length });
+  // tracking pixels (zero or one px, or an ad or analytics host) are not photos: the flag's ALT-or-TITLE choice leaves them out
+  const pixelHost = /adsrvr|bat\\.bing|facebook\\.com|doubleclick|googleadservices|google-analytics|googletagmanager|adroll|pixel|beacon|track|analytics|criteo|taboola|outbrain|quantserve|scorecardresearch|linkedin\\.com\\/px|snap\\.licdn|t\\.co\\/|1x1|spacer|blank\\.gif|transparent/i;
+  const isPixel = i => { const r = i.getBoundingClientRect(); const src = i.currentSrc || i.src || ''; return (i.naturalWidth <= 1 && i.naturalHeight <= 1 && i.complete) || (r.width <= 1 && r.height <= 1) || pixelHost.test(src); };
+  const pixels = im.filter(isPixel); const noAltPixels = pixels.filter(i => !(i.getAttribute('alt') || '').trim()).length, noTitlePixels = pixels.filter(i => !(i.getAttribute('title') || '').trim()).length;
   // carousels clone their slides and swap lazy images as they rotate, so a read's counts depend on the carousel's state
   const inCarousel = im.filter(i => i.closest('[class*="slick"], [class*="carousel"], [class*="slider"], [class*="swiper"]'));
   const cloned = im.filter(i => i.closest('.slick-cloned, [class*="clone"]'));
@@ -25,6 +29,7 @@ SEO_META = """async () => {
   const vis = e => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.opacity !== '0'; };
   return { title: document.title, titleLen: document.title.length, meta: md ? md.content : '', metaLen: md ? md.content.length : 0,
     h: [1,2,3,4,5,6].map(i => document.querySelectorAll('h' + i).length), withMap: all.length !== im.length ? cnt(all) : null, mapImages: all.length - im.length, carousel,
+    pixels: { images: pixels.length, noAlt: noAltPixels, noTitle: noTitlePixels, srcs: pixels.slice(0, 8).map(i => (i.currentSrc || i.src || '').slice(0, 80)) },
     h1All: [...document.querySelectorAll('h1')].map(e => (e.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 120)),
     h1Visible: [...document.querySelectorAll('h1')].filter(vis).map(e => e.innerText.trim().replace(/\\s+/g, ' ').slice(0, 120)),
     images: im.length, noAlt: im.filter(i => !(i.getAttribute('alt') || '').trim()).length,

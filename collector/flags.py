@@ -73,10 +73,13 @@ def apply(store):
         F('popup', 'Homepage Pop-Up', p['open_s'], 0, 'Delay homepage pop-ups 15 seconds to improve website load time', p.get('captures', []))
     home = (r.get('seo_meta') or {}).get('home') or {}
     if home.get('images') and (home.get('no_alt') or home.get('no_title')):
-        # The skill's comment names the biggest miss; the decks so far lead with ALT text whenever any image lacks it
-        # (Bay Hyundai: "46 of 52 images are missing ALT text" with 51 lacking TITLE), so ALT comes first.
-        miss, what = (home['no_alt'], 'ALT text') if home.get('no_alt') else (home['no_title'], 'TITLE text')
-        F('images', 'Unoptimized Images', {'images': home['images'], 'no_alt': home.get('no_alt'), 'no_title': home.get('no_title')}, 0, f'{miss} of {home["images"]} images are missing {what}', ['typed grid'])
+        # The skill's comment names the biggest miss; the decks so far lead with ALT text whenever any real image lacks
+        # it (Bay Hyundai: "46 of 52 images are missing ALT text" with 51 lacking TITLE), so ALT comes first. Tracking
+        # pixels do not count toward that choice (Natchez Nissan: the 3 without ALT were all pixels, the miss is TITLE);
+        # the raw counts are reported unchanged.
+        real_no_alt = home.get('no_alt_excluding_pixels', home.get('no_alt')) or 0
+        miss, what = (home['no_alt'], 'ALT text') if real_no_alt else (home['no_title'], 'TITLE text')
+        F('images', 'Unoptimized Images', {'images': home['images'], 'no_alt': home.get('no_alt'), 'no_title': home.get('no_title'), 'no_alt_excluding_pixels': home.get('no_alt_excluding_pixels')}, 0, f'{miss} of {home["images"]} images are missing {what}', ['typed grid'])
     for key, label in (('home', 'home'), ('srp', 'SRP')):
         m = (r.get('seo_meta') or {}).get(key) or {}
         if (m.get('title_len') or 0) > 60 or (m.get('meta_len') or 0) > 160:

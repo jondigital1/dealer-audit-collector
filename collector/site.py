@@ -133,6 +133,12 @@ def seo_meta(store, page):
                             'images_note': 'the page\'s own images after a stepwise scroll to the bottom' + (f'; a map widget adds {m["mapImages"]} more, counted under images_with_map' if m.get('withMap') else '')})
                 if m.get('withMap'):
                     rec['images_with_map'] = {'images': m['withMap']['images'], 'no_alt': m['withMap']['noAlt'], 'no_title': m['withMap']['noTitle']}
+                if m.get('pixels'):
+                    px = m['pixels']
+                    rec['tracking_pixels'] = {'images': px['images'], 'no_alt': px['noAlt'], 'no_title': px['noTitle'], 'srcs': px['srcs'],
+                                              'note': 'zero or one px images and ad or analytics hosts; the raw counts above include them, the flag\'s ALT-or-TITLE choice leaves them out'}
+                    rec['no_alt_excluding_pixels'] = m['noAlt'] - px['noAlt']
+                    rec['no_title_excluding_pixels'] = m['noTitle'] - px['noTitle']
                 if m.get('carousel', {}).get('images'):
                     c = m['carousel']
                     rec['images_in_carousels'] = {'images': c['images'], 'no_alt': c['noAlt'], 'cloned_slides': c['cloned'], 'cloned_no_alt': c['clonedNoAlt'],
