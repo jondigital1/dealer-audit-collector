@@ -4,6 +4,8 @@ special hours. Each function records into store.results and saves; a failure mar
 import re
 from urllib.parse import urljoin, urlparse
 
+from PIL import Image
+
 from . import captures, config, snippets
 from .store import domain_of
 
@@ -473,10 +475,13 @@ def pages(store, page):
                 z = config.DEALER_ZOOM
                 blocks.append({'x': round(b['x'] / z), 'y': round(b['y'] / z), 'w': round(b['w'] / z), 'h': round(b['h'] / z), 'tag': None, 'id': None, 'cls': None, 'color': b['color'], 'method': b['method']})
             if blocks:
+                # the page's own zoom-1.4 capture with each candidate boxed in its pixels (DOM boxes scaled by the zoom)
                 ename = f'empty_{key}.png'
-                captures.shot(store, page, ename, full_page=True)
+                z = config.DEALER_ZOOM
+                (store.captures / ename).write_bytes((store.captures / name).read_bytes())
+                store.record_capture(ename, url, Image.open(store.captures / ename).size)
                 for b in blocks:
-                    captures.red_box(store, ename, (b['x'], b['y'], b['x'] + b['w'], b['y'] + b['h']))
+                    captures.red_box(store, ename, (round(b['x'] * z), round(b['y'] * z), round((b['x'] + b['w']) * z), round((b['y'] + b['h']) * z)))
                     r['empty_blocks'].append({'page': key, 'url': url, **{k: b.get(k) for k in ('x', 'y', 'w', 'h', 'tag', 'id', 'cls', 'color', 'method')}, 'capture': f'captures/{ename}'})
         except Exception as e:
             store.not_captured(f'empty blocks on {key}', str(e))
