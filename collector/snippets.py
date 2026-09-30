@@ -105,9 +105,14 @@ EMPTY_BLOCKS = """() => {
     if (e.querySelector('img, picture, video, iframe, svg, canvas')) continue;
     // media elements are content, not blank space: a loaded image is a photo, an iframe is a widget; an img that never
     // loaded is reported separately below as a broken image
-    if (['SCRIPT', 'STYLE', 'HTML', 'BODY', 'HEAD', 'IMG', 'PICTURE', 'VIDEO', 'IFRAME', 'SVG', 'CANVAS', 'OBJECT', 'EMBED'].includes(e.tagName)) continue;
+    if (['SCRIPT', 'STYLE', 'HTML', 'BODY', 'HEAD', 'IMG', 'PICTURE', 'VIDEO', 'IFRAME', 'SVG', 'CANVAS', 'OBJECT', 'EMBED', 'TABLE', 'COLGROUP', 'COL', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'SOURCE'].includes(e.tagName)) continue;
     const cs = getComputedStyle(e);
     if (cs.backgroundImage !== 'none' || cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0' || cs.position === 'fixed') continue;
+    // a link card, or any block, whose own children carry the picture as a background image is not blank; a block wrapping
+    // an iframe or a table is a widget or a schedule
+    if (e.querySelector('iframe, table, object, embed')) continue;
+    let pictured = false; for (const d of [...e.querySelectorAll('*')].slice(0, 40)) { const ds = getComputedStyle(d); if (ds.backgroundImage !== 'none' && ds.backgroundImage !== '' ) { pictured = true; break; } } if (pictured) continue;
+    if (e.tagName === 'A' || e.closest('a')) continue;
     if (r.left + scrollX < 0 || r.left + scrollX > document.documentElement.scrollWidth) continue;
     if (e.closest('.gm-style, [class*="map"], [id*="map"]')) continue;
     out.push({ tag: e.tagName.toLowerCase(), id: e.id, cls: (e.className || '').toString().slice(0, 80), x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) });
