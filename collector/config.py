@@ -33,7 +33,9 @@ TIMEZONE = 'America/New_York'
 
 # Timeouts (ms), from SPEC.md section 8
 NAV_TIMEOUT = 30_000
-PSI_TIMEOUT = 90_000
+PSI_TIMEOUT = 90_000            # kept for callers; the two below are what PageSpeed uses
+PSI_API_TIMEOUT_S = 240         # the API took over 120 s on a slow home page (Bay Hyundai, Sep 30, 2026)
+PSI_REPORT_TIMEOUT_S = 150      # the report page took 103 s to render the same page
 POPUP_POLL_MS = 20_000
 STORE_BUDGET_S = 600
 

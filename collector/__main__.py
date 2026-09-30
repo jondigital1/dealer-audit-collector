@@ -34,42 +34,9 @@ def collect_store(request, out_dir, plat):
             store.finish()
             return store
         site.setup_pages(store, page)
-        # PageSpeed on the home page: numbers by API, pictures from the report page, then the treemap
+        # PageSpeed on the home page: numbers by API, pictures and the page's own numbers from the report page, the treemap
         rp = ctx.new_page()
-        for ff in ('mobile', 'desktop'):
-            if not config.PSI_API_KEY:
-                store.results['pagespeed'][f'home_{ff}'] = {'api': None, 'report': None, 'runs': [], 'lcp_is_popup': None, 'captures': {}}
-                continue   # no key: the report page below supplies the numbers as well as the pictures
-            try:
-                main, runs = pagespeed.api_with_rerun(store, store.results['pages']['home'], ff)
-                store.results['pagespeed'][f'home_{ff}'] = {'api': main, 'report': None, 'runs': runs, 'lcp_is_popup': main['lcp_is_popup'], 'captures': {}}
-                if ff == 'mobile':
-                    store.results['gtm'] = {'count': main['gtm_count'], 'names': main['gtm_names'], 'scripts_total': main['scripts_total'], 'capture': None, 'source': 'api'}
-                store.check(f'pagespeed_home_{ff}', 'ok')
-            except Exception as e:
-                store.check(f'pagespeed_home_{ff}', 'failed', f'{type(e).__name__}: {e}')
-        pics = pagespeed.report_pictures(store, rp, store.results['pages']['home'], 'home')
-        for ff in ('mobile', 'desktop'):
-            rec = store.results['pagespeed'].get(f'home_{ff}')
-            if rec:
-                rec['report'] = pics.get('numbers', {}).get(ff)
-                rec['report_url'] = pics.get('report_url')
-                rec['captures'] = {k: v for k, v in pics.get('captures', {}).items() if k.startswith(ff)}
-        if pics.get('report_url'):
-            tm = pagespeed.treemap_picture(store, rp)
-            if tm:
-                if store.results['gtm']:
-                    store.results['gtm']['capture'] = 'captures/treemap_home.png'
-                    store.results['gtm']['count_report'] = tm['count']
-                else:   # no API key: the treemap tab is the count's only source, as in Chrome
-                    store.results['gtm'] = {'count': tm['count'], 'names': tm['names'], 'scripts_total': tm['total'], 'capture': 'captures/treemap_home.png', 'source': 'treemap'}
-            for ff in ('mobile', 'desktop'):
-                rec = store.results['pagespeed'].get(f'home_{ff}')
-                if rec and not rec['api'] and rec['report']:
-                    store.check(f'pagespeed_home_{ff}', 'ok')
-                elif rec and not rec['api']:
-                    store.check(f'pagespeed_home_{ff}', 'failed', 'no key and the report page exposed no numbers; PageSpeed goes to Chrome')
-        store.save()
+        pagespeed.home(store, rp, store.results['pages']['home'])
         popups.timing(store, b)
         site.seo_meta(store, page)
         site.srp_links(store, page)
