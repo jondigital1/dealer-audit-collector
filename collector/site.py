@@ -403,7 +403,17 @@ def contact_info(store, page):
         holidays = re.findall(r"(Christmas Eve|Christmas Day|Christmas|New Year's Eve|New Year's Day|Thanksgiving|Labor Day|Memorial Day|Independence Day|July 4th|Easter|Good Friday|Veterans Day|Columbus Day|Juneteenth|MLK Day|Presidents'? Day)", c['specialHours'], re.I)
         store.results['special_hours'] = {'where': 'home page', 'text': c['specialHours'][:1200], 'holidays': sorted(set(holidays), key=holidays.index)}
     try:
-        captures.element_shot(store, page, '[class*="ws-hours"], [id*="hours-app"], [class*="hours"], #hours, [id*="hours"]', 'hours_site.png', pad=12)
+        # the collapsed Service Hours and Parts Hours panels opened first (read-only toggles), then the block that holds
+        # every schedule, so the shot carries all three
+        clicked = page.evaluate(snippets.EXPAND_HOURS)
+        if clicked:
+            page.wait_for_timeout(700)
+        hb = page.evaluate(snippets.HOURS_UNION)
+        if hb:
+            captures.box_shot(store, page, {'x': hb['x'], 'y': hb['y'], 'w': hb['w'], 'h': hb['h']}, 'hours_site.png', pad=12)
+            store.results['address_hours']['hours_capture_note'] = f'{hb["blocks"]} hours block(s) in the shot' + (f', {clicked} panel(s) expanded first' if clicked else '')
+        else:
+            captures.element_shot(store, page, '[class*="ws-hours"], [id*="hours-app"], [class*="hours"], #hours, [id*="hours"]', 'hours_site.png', pad=12)
         store.results['address_hours']['captures'].append('captures/hours_site.png')
     except Exception as e:
         store.not_captured('hours_site.png', str(e))

@@ -342,3 +342,24 @@ NEXT_VEHICLE = """(skipHref) => {
   }
   return null;
 }"""
+
+# Expand collapsed hours panels (Service Hours, Parts Hours, See All Department Hours: read-only toggles), then give the
+# smallest block that holds every hours schedule, so the hours capture shows all three
+EXPAND_HOURS = """() => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  let clicked = 0;
+  for (const e of document.querySelectorAll('button, a, h2, h3, h4, h5, [role="button"], [role="tab"], [aria-expanded], [class*="accordion"] > *, [class*="collapse"] > *, [class*="toggle"]')) {
+    const t = (e.innerText || '').trim(); if (!vis(e) || t.length > 60) continue;
+    if (/^(service|parts|sales|showroom|dealership)?\\s*(department\\s*)?hours$|see all department hours|all department hours|service hours|parts hours/i.test(t)) {
+      const exp = e.getAttribute('aria-expanded'); const collapsed = exp === 'false' || /collapsed/.test(e.className || '') || (e.parentElement && /collapsed/.test(e.parentElement.className || ''));
+      if (exp === 'true') continue; try { e.click(); clicked++; } catch (x) {} } }
+  return clicked; }"""
+
+HOURS_UNION = """() => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 40 && r.height > 20; };
+  const blocks = [...document.querySelectorAll('*')].filter(e => vis(e) && /hours/i.test(e.className + ' ' + e.id) && e.innerText && e.innerText.length > 20 && e.innerText.length < 2500 && /am|pm|closed/i.test(e.innerText))
+    .filter((e, i, arr) => !arr.some(o => o !== e && o.contains(e)));
+  if (!blocks.length) return null;
+  // the smallest common ancestor of every hours block, as long as it stays a sidebar or section (not the whole page)
+  let anc = blocks[0]; while (anc && !blocks.every(b => anc.contains(b))) anc = anc.parentElement;
+  const page = document.documentElement.scrollHeight; let target = anc; while (target && target !== document.body && target.getBoundingClientRect().height > Math.min(2200, page * 0.6)) target = blocks[0];
+  const r = (target || blocks[0]).getBoundingClientRect();
+  return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height, blocks: blocks.length, schedules: blocks.map(b => (b.innerText || '').replace(/\\s+/g, ' ').slice(0, 60)) }; }"""
