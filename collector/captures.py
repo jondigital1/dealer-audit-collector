@@ -85,6 +85,9 @@ def prepare(page, zoom=None):
     """Before every capture (references/04_capture.md): hide the extension button and the Podium bubble, park the
     mouse off the page, scroll once so lazy images load, set the document zoom when the page renders small."""
     page.evaluate(snippets.HIDE, config.HIDE_BEFORE_CAPTURE)
+    clicked = decline_cookie_banner(page)
+    if clicked:
+        page.wait_for_timeout(400)
     page.mouse.move(config.VIEWPORT['width'] - 1, config.VIEWPORT['height'] // 2)
     page.evaluate(snippets.SCROLL_PASS)
     if zoom:
@@ -224,6 +227,44 @@ def crop(store, src_name, dst_name, box):
     im.save(store.captures / dst_name)
     store.record_capture(dst_name, store.results['captures'].get(src_name, {}).get('page'), im.size)
     return store.captures / dst_name
+
+
+def blank_regions(path, min_h=150, min_w=300, zoom=1.0, tol=6, margin=0.04):
+    """Blank bands in a full-page capture, found in the pixels rather than the DOM (a banner whose image was never set
+    can still carry invisible heading text, so the DOM rule misses it): runs of rows whose pixels are one flat color
+    across the page's content width, at least min_h by min_w CSS px. Returns boxes in the capture's own pixels."""
+    import numpy as np
+    im = Image.open(path).convert('RGB')
+    a = np.asarray(im)
+    h, w = a.shape[:2]
+    x0, x1 = int(w * margin), int(w * (1 - margin))
+    band = a[:, x0:x1, :].astype(int)
+    row_flat = (band.max(axis=1) - band.min(axis=1)).max(axis=1) <= tol   # every pixel in the row within tol of each other
+    out = []
+    y = 0
+    min_rows = int(min_h * zoom)
+    while y < h:
+        if not row_flat[y]:
+            y += 1
+            continue
+        y0 = y
+        while y < h and row_flat[y] and abs(int(band[y].mean()) - int(band[y0].mean())) <= tol:
+            y += 1
+        if y - y0 >= min_rows and y0 > 0 and y < h:   # not the page's own top or bottom margin
+            color = tuple(int(v) for v in band[y0:y].reshape(-1, 3).mean(axis=0))
+            out.append({'x': x0, 'y': y0, 'w': x1 - x0, 'h': y - y0, 'color': '#%02x%02x%02x' % color, 'method': 'flat band in the capture'})
+    return out[:8]
+
+
+def decline_cookie_banner(page):
+    """Decline a cookie or privacy panel when one is showing (the ground rules: decline, never accept): ComplyAuto's
+    "Deny targeting cookies", OneTrust's "Reject All", or any visible Decline or Deny button. Returns what was clicked."""
+    try:
+        return page.evaluate("""() => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+          for (const b of document.querySelectorAll('button, a, [role="button"]')) { const t = (b.innerText || '').trim(); if (!vis(b) || t.length > 40) continue;
+            if (/^(deny|deny targeting cookies|reject all|reject|decline|decline all|no thanks|opt out)$/i.test(t)) { b.click(); return t; } } return null; }""")
+    except Exception:
+        return None
 
 
 def red_box(store, name, box, width=4, color=(217, 48, 37)):

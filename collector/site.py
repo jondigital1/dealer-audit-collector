@@ -8,6 +8,7 @@ from . import captures, config, snippets
 from .store import domain_of
 
 NEW_SRP_PATHS = ['/new-inventory/index.htm', '/new-inventory/', '/new-vehicles/', '/inventory/new/', '/new/', '/searchnew.aspx', '/new-inventory']
+HOLIDAYS = r"(Christmas Eve|Christmas Day|Christmas|New Year's Eve|New Year's Day|New Years Eve|New Years Day|Thanksgiving|Labor Day|Memorial Day|Independence Day|July 4th|Fourth of July|Easter|Good Friday|Veterans Day|Columbus Day|Juneteenth|MLK Day|Martin Luther King|Presidents'? Day)"
 NOT_FOUND = re.compile(r'\b404\b|page not found|not found|no longer available', re.I)
 # a page that opens but has nothing on it (the fixture's Used body-style pages read 0 Vehicles; Testimonials and News
 # read "Sorry, no ... available at this time"); the words are recorded and Claude judges the page from its capture
@@ -48,7 +49,7 @@ FIRST_VEHICLE = """() => {
 }"""
 
 SRP_COUNT = """() => {
-  const el = document.querySelector('.vehicle-count, [class*="vehicle-count"], [class*="results-count"], [class*="result-count"], [class*="inventory-count"], [class*="srp-count"], [class*="total-results"], [class*="matches"]');
+  const el = document.querySelector('.vehicle-count, [class*="vehicle-count"], [class*="results-count"], [class*="result-count"], [class*="inventory-count"], [class*="srp-count"], [class*="total-results"], [class*="matches"], [class*="results-title"], [class*="result-title"], [class*="results-heading"]');
   return { el: el ? el.innerText.trim().slice(0, 80) : null, body: document.body.innerText.slice(0, 6000) };
 }"""
 
@@ -89,6 +90,8 @@ def setup_pages(store, page):
     m = None
     if c['el']:
         m = re.search(r'(\d[\d,]*)\s*(new\s+)?(vehicles?|results?|matches?|cars?|listings?)', c['el'], re.I)
+        if not m:   # Dealer Inspire: "477 New HYUNDAI in Jacksonville, FL"
+            m = re.search(r'(\d[\d,]*)\s+(new\s+)?([A-Za-z][A-Za-z-]+)', c['el'].split('\n')[0], re.I)
     if not m:
         m = re.search(r'(\d[\d,]*)\s+(new\s+)?(vehicles?|results?|matches?|cars?|listings?)', c['body'], re.I)
     if m:
@@ -209,8 +212,8 @@ def menu_crawl(store, page, max_items=72):
         if item['result'] in (None, 'ok', 'error'):
             continue
         try:
-            top = page.locator('nav a, header a, [class*="nav"] a').filter(has_text=re.compile(r'^\s*' + re.escape(item['top'] or item['label']) + r'\s*$')).first
-            top.hover()
+            top = page.locator('nav a, header a, [class*="nav"] a, [class*="menu"] a').filter(has_text=re.compile(r'^\s*' + re.escape(item['top'] or item['label']) + r'\s*$')).filter(visible=True).first
+            top.hover(timeout=8000)
             page.wait_for_timeout(700)
             page.evaluate("""(label) => { for (const a of document.querySelectorAll('nav a, header a, [class*="nav"] a')) if (a.innerText.trim() === label) { a.style.outline = '3px solid #D93025'; a.style.outlineOffset = '2px'; } }""", item['label'])
             name = f'menu_{slug(item["label"])}.png'
@@ -446,18 +449,35 @@ def pages(store, page):
                 r['special_hours'] = {'where': 'hours page', 'text': sp[:1200], 'holidays': sorted(set(holidays), key=holidays.index), 'capture': f'captures/{name}'}
         else:
             r['cx'].append(entry)
+        # a Dealership Info sidebar: its text, and any holiday named in it counts as special hours
+        try:
+            di = page.evaluate(snippets.DEALERSHIP_INFO)
+            if di and not r.get('dealership_info'):
+                hol = re.findall(HOLIDAYS, di['text'], re.I)
+                r['dealership_info'] = {'page': key, 'url': url, 'text': di['text'][:2000], 'holidays': sorted(set(hol), key=hol.index), 'capture': f'captures/{name}'}
+                if hol and not r.get('special_hours'):
+                    r['special_hours'] = {'where': f'Dealership Info sidebar on the {key} page', 'text': di['text'][:1200], 'holidays': sorted(set(hol), key=hol.index), 'capture': f'captures/{name}'}
+        except Exception as e:
+            store.not_captured(f'dealership info on {key}', str(e))
         # empty-block candidates on this page, with the page captured and each candidate boxed
         try:
             broken = page.evaluate(snippets.BROKEN_IMAGES)
             if broken:
                 entry['broken_images'] = broken
             blocks = page.evaluate(snippets.EMPTY_BLOCKS)
+            for b in blocks:
+                b['method'] = 'DOM: no text, no media, no background image'
+            # and the flat bands in the capture itself (a banner with no image set still carries invisible heading text)
+            bands = captures.blank_regions(store.captures / name, zoom=config.DEALER_ZOOM)
+            for b in bands:
+                z = config.DEALER_ZOOM
+                blocks.append({'x': round(b['x'] / z), 'y': round(b['y'] / z), 'w': round(b['w'] / z), 'h': round(b['h'] / z), 'tag': None, 'id': None, 'cls': None, 'color': b['color'], 'method': b['method']})
             if blocks:
                 ename = f'empty_{key}.png'
                 captures.shot(store, page, ename, full_page=True)
                 for b in blocks:
                     captures.red_box(store, ename, (b['x'], b['y'], b['x'] + b['w'], b['y'] + b['h']))
-                    r['empty_blocks'].append({'page': key, 'url': url, **{k: b[k] for k in ('x', 'y', 'w', 'h', 'tag', 'id', 'cls')}, 'capture': f'captures/{ename}'})
+                    r['empty_blocks'].append({'page': key, 'url': url, **{k: b.get(k) for k in ('x', 'y', 'w', 'h', 'tag', 'id', 'cls', 'color', 'method')}, 'capture': f'captures/{ename}'})
         except Exception as e:
             store.not_captured(f'empty blocks on {key}', str(e))
         opened.append(key)

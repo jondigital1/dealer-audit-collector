@@ -53,8 +53,9 @@ MENU_LINKS = """() => {
   const out = [];
   for (const a of nav.querySelectorAll('a[href]')) {
     const href = a.getAttribute('href') || '';
-    if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:')) continue;
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:') || href === '?' || href === '/?' || href.startsWith('sms:')) continue;
     let u; try { u = new URL(a.href); } catch (e) { continue; }
+    if (/google\\.com\\/maps|maps\\.google|maps\\.apple|bing\\.com\\/maps|goo\\.gl\\/maps/i.test(a.href)) continue;   // the header's map link is not a menu item
     const top = a.closest('li'); const topItem = top && top.parentElement && top.parentElement.closest('li');
     const topLabel = topItem ? (topItem.querySelector(':scope > a, :scope > span, :scope > button') || topItem).innerText.trim().split('\\n')[0].slice(0, 60) : '';
     out.push({ top: topLabel, label: a.innerText.trim().replace(/\\s+/g, ' ').slice(0, 80), host: u.host, path: u.pathname + (u.search ? '?' : ''), href: a.href, target: a.target });
@@ -267,3 +268,8 @@ SPECIALS_CARDS = """() => {
   const h1 = document.querySelector('h1'); const imgs = [...document.images].filter(i => !i.closest('header, footer, nav, .page-header, [class*="footer"], [class*="map"]') && i.getBoundingClientRect().width > 80).length;
   return { cards, card_group: best ? best[0] : null, main_text_chars: mainText.length, h1: h1 ? clean(h1.innerText).slice(0, 120) : null, content_images: imgs };
 }"""
+
+# A Dealership Info sidebar (Dealer Inspire's finance and service pages carry one with the phones, hours and any
+# special hours): its text, so holiday hours in it are on record even when the block never says "Special Hours"
+DEALERSHIP_INFO = """() => { const e = [...document.querySelectorAll('body *')].find(x => /^(Dealership|Dealer|Store) Info/i.test((x.innerText || '').trim().slice(0, 30)) && x.innerText.length < 2500 && x.getBoundingClientRect().width > 150);
+  if (!e) return null; const r = e.getBoundingClientRect(); return { text: e.innerText.trim(), x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height }; }"""
