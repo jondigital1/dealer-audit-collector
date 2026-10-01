@@ -443,6 +443,10 @@ def home(store, rp, url):
         if extra.get(ff):
             extra[ff]['had_warning'] = True
             rec['runs'].append(extra[ff])
+        if rec['report'] is not None and rec['report'].get('had_warning') and all(x.get('had_warning') for x in rec['runs']) and len(rec['runs']) >= 2:
+            warn = (rec['report'].get('run_warnings') or [''])[0]
+            rec['warning'] = f'both report runs warned ("{warn[:90]}"); run this side once in Chrome before quoting its number'
+            store.not_captured(f'PageSpeed home {ff} without a warning', rec['warning'])
         if rec['report'] is not None:
             rec['report']['had_warning'] = bool(rec['report'].get('run_warnings'))
         rec['report_url'] = (rec['report'] or {}).get('report_url') or pics.get('report_url')
