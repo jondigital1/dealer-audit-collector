@@ -106,11 +106,26 @@ def main(argv):
                     ctx.close()
                     print(json.dumps({s['url']: pf}, indent=1))
             return 0
-        with ThreadPoolExecutor(max_workers=max(1, jobs)) as ex:
-            list(ex.map(lambda s: collect_store(s, out, plat), stores))
-        if 'stores' in spec and spec.get('group_site'):
-            gs = group.run(spec, out, plat)
-            group.compare(spec, out, gs.results)
+        # stores N at a time (--jobs), each in its own browser; a group's site runs as one more job beside them, and the
+        # cross-site compare runs once every store has finished. The wall-clock time is written to DIR/run.json.
+        import time
+        from .store import now_et
+        t0 = time.time()
+        run_log = {'started_at': now_et(), 'jobs': jobs, 'stores': [s['url'] for s in stores], 'group_site': spec.get('group_site') if 'stores' in spec else None}
+        gs_holder = {}
+        with ThreadPoolExecutor(max_workers=max(1, jobs) + (1 if 'stores' in spec and spec.get('group_site') else 0)) as ex:
+            futs = [ex.submit(collect_store, s, out, plat) for s in stores]
+            if 'stores' in spec and spec.get('group_site'):
+                gfut = ex.submit(group.run, spec, out, plat)
+            for f in futs:
+                f.result()
+            if 'stores' in spec and spec.get('group_site'):
+                gs_holder['gs'] = gfut.result()
+        if gs_holder.get('gs'):
+            group.compare(spec, out, gs_holder['gs'].results)
+        run_log.update({'finished_at': now_et(), 'seconds': round(time.time() - t0), 'minutes': round((time.time() - t0) / 60, 1)})
+        (out / 'run.json').write_text(json.dumps(run_log, indent=1))
+        print(f'wall clock: {run_log["minutes"]} min for {len(stores)} store(s)' + (' and the group site' if run_log['group_site'] else ''))
         print(handoff.run(out) if '--handoff' in argv else f'finished; run: python3 -m collector handoff {out}')
         return 0
     print(__doc__)

@@ -13,8 +13,15 @@ from . import config
 
 
 def zip_store(store_dir, out_dir):
+    """One zip per store folder; the group site's folder is named by its domain, group-site_<domain>_<date>.zip."""
     store_dir = Path(store_dir)
-    name = f'{store_dir.name}_{dt.date.today().isoformat()}.zip'
+    label = store_dir.name
+    if label == 'group' and (store_dir / 'results.json').exists():
+        try:
+            label = 'group-site_' + (json.loads((store_dir / 'results.json').read_text()).get('domain') or 'group')
+        except Exception:
+            pass
+    name = f'{label}_{dt.date.today().isoformat()}.zip'
     out = Path(out_dir) / name
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         for p in sorted(store_dir.rglob('*')):
