@@ -15,32 +15,36 @@
  *
  * It only reads the Audit Requests tab and sends rows whose Status and Audit Results are blank. It writes nothing.
  */
-var TRIGGER_TAB_GID = 1668779070;   // the Audit Requests tab (the Google Form's tab)
+var TRIGGER_TAB_GID = 1668779070;
 
 function requestsTab_() {
   var sheets = SpreadsheetApp.getActive().getSheets();
-  for (var i = 0; i < sheets.length; i++) if (sheets[i].getSheetId() === TRIGGER_TAB_GID) return sheets[i];
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].getSheetId() === TRIGGER_TAB_GID) return sheets[i];
+  }
   return SpreadsheetApp.getActive().getSheetByName('Audit Requests');
 }
 
-function unfinishedRows_(onlyRows) {
+function colIndex_(head, prefix) {
+  var p = prefix.toLowerCase();
+  for (var i = 0; i < head.length; i++) {
+    if (String(head[i]).toLowerCase().indexOf(p) === 0) return i;
+  }
+  return -1;
+}
+
+// The tab's header row plus every row whose Status and Audit Results are blank (the rows still waiting on an audit)
+function unfinishedRows_() {
   var tab = requestsTab_();
   var values = tab.getDataRange().getDisplayValues();
   if (values.length < 2) return [values[0] || []];
   var head = values[0];
-  var col = function (prefix) { for (var i = 0; i < head.length; i++) if (String(head[i]).toLowerCase().indexOf(prefix.toLowerCase()) === 0) return i; return -1; };
-  var cStatus = col('Status'), cResults = col('Audit Results'), cUrl = col('Dealer URL'), cGroup = col('Auto Group Name');
+  var cStatus = colIndex_(head, 'Status');
+  var cResults = colIndex_(head, 'Audit Results');
+  var cUrl = colIndex_(head, 'Dealer URL');
   var out = [head];
   for (var r = 1; r < values.length; r++) {
     var row = values[r];
-    var rowNumber = r + 1;
-    if (onlyRows && onlyRows.indexOf(rowNumber) < 0) {
-      // a group's store rows arrive under the submitted row: send every unfinished row that shares its Auto Group Name
-      var g = cGroup >= 0 ? String(row[cGroup]).trim() : '';
-      var submittedGroup = false;
-      for (var k = 0; k < onlyRows.length; k++) { var v = values[onlyRows[k] - 1]; if (v && cGroup >= 0 && g && String(v[cGroup]).trim().toLowerCase() === g.toLowerCase()) submittedGroup = true; }
-      if (!submittedGroup) continue;
-    }
     var status = cStatus >= 0 ? String(row[cStatus]).trim() : '';
     var results = cResults >= 0 ? String(row[cResults]).trim() : '';
     var url = cUrl >= 0 ? String(row[cUrl]).trim() : '';
@@ -52,32 +56,47 @@ function unfinishedRows_(onlyRows) {
 
 function send_(rows, source) {
   var props = PropertiesService.getScriptProperties();
-  var url = props.getProperty('COLLECTOR_URL'), secret = props.getProperty('TRIGGER_SECRET');
-  if (!url || !secret) { Logger.log('COLLECTOR_URL or TRIGGER_SECRET is not set in Script Properties'); return; }
-  if (rows.length < 2) { Logger.log(source + ': nothing unfinished to send'); return; }
+  var url = props.getProperty('COLLECTOR_URL');
+  var secret = props.getProperty('TRIGGER_SECRET');
+  if (!url || !secret) {
+    Logger.log('COLLECTOR_URL or TRIGGER_SECRET is not set');
+    return;
+  }
+  if (rows.length < 2) {
+    Logger.log(source + ': nothing unfinished to send');
+    return;
+  }
+  var body = {
+    source: source,
+    sent_at: new Date().toISOString(),
+    rows: rows
+  };
   var res = UrlFetchApp.fetch(url, {
-    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
     headers: { 'X-Trigger-Secret': secret },
-    payload: JSON.stringify({ source: source, sent_at: new Date().toISOString(), rows: rows })
+    payload: JSON.stringify(body)
   });
-  Logger.log(source + ': ' + (rows.length - 1) + ' row(s) sent, collector answered ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 300));
+  Logger.log(source + ': ' + (rows.length - 1) + ' row(s) sent');
+  Logger.log('collector answered ' + res.getResponseCode());
+  Logger.log(res.getContentText().slice(0, 300));
 }
 
-// A consultant's request landed through the form. The Group Requests script adds a group's store rows a moment later,
-// so a group goes out with its Store websites list and the collector builds the stores from that.
+// A consultant's request landed through the form; the Group Requests script adds a group's store rows a moment later
 function onRequestSubmitted(e) {
-  var rowNumber = e && e.range ? e.range.getRow() : null;
-  Utilities.sleep(5000);   // let Group Requests.gs add the store rows and sort the tab first
-  send_(unfinishedRows_(null), 'form submit' + (rowNumber ? ' row ' + rowNumber : ''));
+  Utilities.sleep(5000);
+  send_(unfinishedRows_(), 'form submit');
 }
 
-// A row added or changed by hand (an audit asked for in chat gets its row first; clearing a Status puts a row back in line)
+// A row added or changed by hand (an audit asked for in chat gets its row first; clearing a Status puts a row back)
 function onSheetChanged(e) {
-  if (e && e.changeType && ['INSERT_ROW', 'EDIT', 'OTHER'].indexOf(e.changeType) < 0) return;
-  send_(unfinishedRows_(null), 'sheet change ' + (e && e.changeType ? e.changeType : ''));
+  var kind = e && e.changeType ? e.changeType : '';
+  if (kind && ['INSERT_ROW', 'EDIT', 'OTHER'].indexOf(kind) < 0) return;
+  send_(unfinishedRows_(), 'sheet change ' + kind);
 }
 
-// Every hour: whatever is still unfinished (a push the VM missed while it was down runs now; rows already run are ignored there)
+// Every hour: whatever is still unfinished (the collector ignores rows it already ran)
 function sweepUnfinished() {
-  send_(unfinishedRows_(null), 'hourly sweep');
+  send_(unfinishedRows_(), 'hourly sweep');
 }
