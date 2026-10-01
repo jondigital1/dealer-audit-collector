@@ -72,6 +72,14 @@ def listing(store, page):
             return
         b['exists'] = True
         b['name'] = (info['name'] or '').strip()[:80] or None
+        # the panel must be this store's: Bing answered "Bay Lincoln 704 W 15th Street" with Bay Hyundai's listing on the
+        # same campus (Oct 1, 2026); a different name is recorded and kept out of the address and hours compare
+        want = [w for w in re.findall(r'[a-z0-9]+', (store.req.get('store') or '').lower()) if len(w) > 2]
+        got = (b['name'] or '').lower()
+        b['name_matches'] = bool(want) and all(w in got for w in want[:2])
+        if not b['name_matches']:
+            b['note'] = f'the panel Bing showed is "{b["name"]}", not {store.req.get("store")}; its address and hours are recorded but not compared'
+            store.noticed(f'Bing Maps showed "{b["name"]}" for the query "{q}"; no listing of its own found for {store.req.get("store")}', 'captures/bing_panel.png')
         b['rating'] = info['rating']
         b['rating_source'] = info['src']
         b['category'] = info['category']
@@ -98,8 +106,12 @@ def listing(store, page):
         if info['hasMore']:
             rows = page.evaluate(MORE_HOURS, False)
             b['hours'] = rows
-            ah['bing_hours_rows'] = rows
-        ah['bing_address'] = b['address']
+            if b['name_matches']:
+                ah['bing_hours_rows'] = rows
+        if b['name_matches']:
+            ah['bing_address'] = b['address']
+        else:
+            ah['bing_listing_note'] = b['note']
         # the panel, at the skill's zoom, the mouse parked off it
         page.evaluate(snippets.ZOOM, BING_ZOOM)
         page.wait_for_timeout(600)

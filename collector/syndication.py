@@ -17,11 +17,11 @@ NOT_DEALERS = ('wikipedia.org', 'youtube.com', 'facebook.com', 'edmunds.com', 'k
 
 # A distinctive sentence from the page's own copy: a paragraph in the content (not the header, nav or footer), split
 # into sentences, the first of 12 to 20 words that names no dealer, town or price and has no link-only words
-PICK_SENTENCE = """([avoid]) => { const bad = new RegExp(avoid.filter(Boolean).map(s => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|') || 'zzzzzz', 'i');
+PICK_SENTENCE = """([avoid, lo, hi]) => { const bad = new RegExp(avoid.filter(Boolean).map(s => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|') || 'zzzzzz', 'i');
   const paras = [...document.querySelectorAll('main p, article p, [class*="content"] p, [class*="research"] p, [class*="body"] p, section p, p')].filter(p => !p.closest('header, nav, footer, [class*="header"], [class*="footer"], [class*="nav"], [class*="disclaimer"], [class*="sidebar"]') && p.getBoundingClientRect().width > 200);
   const out = [];
   for (const p of paras) { const t = (p.innerText || '').replace(/\\s+/g, ' ').trim(); if (t.length < 80) continue;
-    for (const s of t.split(/(?<=[.!?])\\s+/)) { const w = s.trim().replace(/[\\u201c\\u201d"]/g, ''); const n = w.split(/\\s+/).length; if (n < 12 || n > 20) continue; if (bad.test(w) || /\\$|\\d{4}|%|click|call us|visit us|contact/i.test(w)) continue; out.push(w); if (out.length >= 3) return out; } }
+    for (const s of t.split(/(?<=[.!?])\\s+/)) { const w = s.trim().replace(/[\\u201c\\u201d"]/g, ''); const n = w.split(/\\s+/).length; if (n < lo || n > hi) continue; if (bad.test(w) || /\\$|\\d{4}|%|click|call us|visit us|contact/i.test(w)) continue; out.push(w); if (out.length >= 3) return out; } }
   return out; }"""
 
 # Bing wraps every result link in bing.com/ck/a?u=a1<base64url of the target>; the snippet sits in .b_caption. When the
@@ -112,9 +112,16 @@ def check(store, page):
     try:
         captures.goto(page, entry['url'])
         page.wait_for_timeout(1000)
-        sentences = page.evaluate(PICK_SENTENCE, [avoid])
+        sentences = page.evaluate(PICK_SENTENCE, [avoid, 12, 20])
+        picked_range = '12 to 20 words'
+        if not sentences:   # a short research page: a wider range, then one that allows the brand's name
+            sentences = page.evaluate(PICK_SENTENCE, [avoid, 9, 28])
+            picked_range = '9 to 28 words'
         if not sentences:
-            store.check('research_content', 'failed', f'no sentence of 12 to 20 words without the dealer\'s name in the body copy of {entry["url"]}')
+            sentences = page.evaluate(PICK_SENTENCE, [[r.get('store') or '', r.get('city') or ''] + list(req.get('towns') or []), 9, 28])
+            picked_range = '9 to 28 words, the brand allowed'
+        if not sentences:
+            store.check('research_content', 'failed', f'no sentence of 9 to 28 words without the dealer\'s name in the body copy of {entry["url"]}')
             return
         sentence = sentences[0]
         engine, hits, tried = search(page, sentence)
@@ -130,7 +137,7 @@ def check(store, page):
             seen.add(host)
             others.append(host)
         oem_hits = sorted({h['host'] for h in hits if any(h['host'] == o or h['host'].endswith('.' + o) for o in OEM)})
-        r['research_content'] = {'page': entry['url'], 'label': entry.get('label'), 'sentence': sentence, 'other_sentences': sentences[1:], 'engine': engine, 'searched_at': now_et(),
+        r['research_content'] = {'page': entry['url'], 'label': entry.get('label'), 'sentence': sentence, 'sentence_range': picked_range, 'other_sentences': sentences[1:], 'engine': engine, 'searched_at': now_et(),
                                  'results_carrying_it': len(hits), 'other_dealer_domains': others, 'manufacturer_site_carries_it': oem_hits, 'own_domain_in_results': any(h['host'] == own for h in hits),
                                  'engines_tried': tried, 'capture': entry.get('capture'),
                                  'note': 'the count leaves out the store itself, the manufacturer\'s own site and review or video sites; Claude confirms a domain is a dealer before it goes on a slide'}

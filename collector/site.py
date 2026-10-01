@@ -235,7 +235,15 @@ def menu_crawl(store, page, max_items=72):
     dealer = domain_of(home)
     sisters = set(store.req.get('sister_sites') or [])
     group_host = domain_of(store.req['group_site']) if store.req.get('group_site') else None
-    captures.goto(page, home)
+    for attempt in (1, 2):   # one navigation timeout must not cost the whole crawl
+        try:
+            captures.goto(page, home)
+            break
+        except Exception as e:
+            if attempt == 2:
+                raise
+            store.log(f'menu crawl: the home page did not load ({type(e).__name__}); trying once more')
+            page.wait_for_timeout(2000)
     links = page.evaluate(snippets.MENU_LINKS)[:max_items]
     items = []
     for l in links:
@@ -280,7 +288,14 @@ def menu_crawl(store, page, max_items=72):
             item['status'] = f'{type(e).__name__}'
         items.append(item)
     # the menu hovered open for every item that is not ok, boxed in red, shot with the mouse still on it
-    captures.goto(page, home)
+    r['menu'] = {'items_total': len(links), 'opened': len(items), 'items': items}   # the crawl is kept even if the shots fail
+    store.save()
+    try:
+        captures.goto(page, home)
+    except Exception as e:
+        store.not_captured('menu shots', f'the home page did not load for the hover shots: {type(e).__name__}')
+        store.check('menu', 'ok')
+        return
     page.wait_for_timeout(800)
     for item in items:
         if item['result'] in (None, 'ok', 'error'):
