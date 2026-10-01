@@ -14,8 +14,13 @@ HOLIDAYS = r"(Christmas Eve|Christmas Day|Christmas|New Year's Eve|New Year's Da
 NOT_FOUND = re.compile(r'\b404\b|page not found|not found|no longer available', re.I)
 # a page that opens but has nothing on it (the fixture's Used body-style pages read 0 Vehicles; Testimonials and News
 # read "Sorry, no ... available at this time"); the words are recorded and Claude judges the page from its capture
-EMPTY_PAGE = re.compile(r'\b0 (vehicles?|results?|matches)\b|check back soon|no (vehicles|results|posts|news|testimonials|specials|offers)\b[^\n]{0,60}|sorry, no [^\n]{0,80}(available|found|matched)|currently no [^\n]{0,40}|we are currently updating', re.I)
-SPECIALS_EMPTY = re.compile(r'NO RESULTS|No vehicles found|We are currently updating|no specials|currently no', re.I)
+# Only a phrase standing as its own line or heading counts (a sentence on /murano.html read "no offers many features
+# that are simply perfect", Oct 1, 2026): the whole line is the phrase, with at most a few words around it
+EMPTY_PAGE = re.compile(r'^[ \t]*(?:(?:showing |currently |there are )?0 (?:vehicles?|results?|matches)(?: found| available)?|check back soon(?: for more results)?|'
+                        r'no (?:vehicles|results|posts|news|testimonials|specials|offers|items|matches)(?: found| available| at this time| matched[^\n]{0,40})?|'
+                        r'sorry,? no [^\n]{0,60}?(?:available|found|matched)[^\n]{0,40}|there are currently no [^\n]{0,40}|'
+                        r'we are currently updating(?: our specials)?[^\n]{0,30}|no (?:results|vehicles) found[^\n]{0,40})[ \t.!]*$', re.I | re.M)
+SPECIALS_EMPTY = EMPTY_PAGE   # the same own-line rule on the specials pages
 THIRD_PARTY = ('commercialtrucktrader.com', 'cars.com', 'autotrader.com', 'carfax.com', 'expressoil.com')
 
 
