@@ -73,10 +73,11 @@ class Store:
             f.write(line + '\n')
 
     def save(self):
-        # seconds since the run started, from the epoch kept in results.json, so a results file loaded and saved by a
-        # later process (a module rerun, the flags) keeps the run's own time rather than that process's
-        t0 = self.results.get('collector', {}).get('started_epoch') or self.t0
-        self.results['collector']['seconds'] = round(time.time() - t0)
+        # seconds since the run started, from the epoch kept in results.json; frozen once the run has finished, so a
+        # results file loaded and saved by a later process (a module rerun, the flags) keeps the run's own time
+        if not self.results['collector'].get('finished_at'):
+            t0 = self.results.get('collector', {}).get('started_epoch') or self.t0
+            self.results['collector']['seconds'] = round(time.time() - t0)
         txt = json.dumps(self.results, indent=1, ensure_ascii=False)
         (self.dir / 'results.json').write_text(no_dash(txt), encoding='utf-8')
 
