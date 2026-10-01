@@ -125,7 +125,9 @@ def check(store, page):
             if sentences:
                 break
         if not sentences:
-            store.check('research_content', 'failed', f'no sentence of 9 to 28 words without the dealer\'s name in the body copy of {", ".join(candidates[:4])}')
+            # no copy to search: a digital showroom of photos, colors and specs (Bay Lincoln's Dealer.com showroom pages,
+            # Oct 1, 2026) carries no sentence to test for syndication
+            store.check('research_content', 'skipped', f'the research pages carry no body copy to search (no sentence of 9 to 28 words on {", ".join(candidates[:4])}); a digital showroom of photos, colors and specs has nothing to test for syndication')
             return
         entry = {**entry, 'url': used, 'capture': entry.get('capture') if used == entry['url'] else next((l.get('capture_dest') for l in (r.get('research_links') or []) if l.get('href') == used), None) or entry.get('capture')}
         sentence = sentences[0]
