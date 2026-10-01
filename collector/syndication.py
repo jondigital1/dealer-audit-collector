@@ -109,20 +109,25 @@ def check(store, page):
     # words that mark the dealer's own localized copy, not syndicated copy: the store, its city and state, the request's towns
     req = store.req or {}
     avoid = [r.get('store') or '', r.get('city') or '', (r.get('store') or '').split(' ')[0], req.get('state') or ''] + list(req.get('towns') or [])
+    # a showroom index (Bay Lincoln's /models.htm: model cards, no copy) has nothing to search; the first model page the
+    # research crawl opened stands in, one model per store
+    candidates = [entry['url']] + [l['href'] for l in (r.get('research_links') or []) if l.get('result') == 'ok' and l.get('href')]
     try:
-        captures.goto(page, entry['url'])
-        page.wait_for_timeout(1000)
-        sentences = page.evaluate(PICK_SENTENCE, [avoid, 12, 20])
-        picked_range = '12 to 20 words'
-        if not sentences:   # a short research page: a wider range, then one that allows the brand's name
-            sentences = page.evaluate(PICK_SENTENCE, [avoid, 9, 28])
-            picked_range = '9 to 28 words'
+        sentences, picked_range, used = [], None, None
+        for url in candidates[:4]:
+            captures.goto(page, url)
+            page.wait_for_timeout(1000)
+            for lo, hi, av, label in ((12, 20, avoid, '12 to 20 words'), (9, 28, avoid, '9 to 28 words'), (9, 28, [r.get('store') or '', r.get('city') or ''] + list(req.get('towns') or []), '9 to 28 words, the brand allowed')):
+                sentences = page.evaluate(PICK_SENTENCE, [av, lo, hi])
+                if sentences:
+                    picked_range, used = label, page.url
+                    break
+            if sentences:
+                break
         if not sentences:
-            sentences = page.evaluate(PICK_SENTENCE, [[r.get('store') or '', r.get('city') or ''] + list(req.get('towns') or []), 9, 28])
-            picked_range = '9 to 28 words, the brand allowed'
-        if not sentences:
-            store.check('research_content', 'failed', f'no sentence of 9 to 28 words without the dealer\'s name in the body copy of {entry["url"]}')
+            store.check('research_content', 'failed', f'no sentence of 9 to 28 words without the dealer\'s name in the body copy of {", ".join(candidates[:4])}')
             return
+        entry = {**entry, 'url': used, 'capture': entry.get('capture') if used == entry['url'] else next((l.get('capture_dest') for l in (r.get('research_links') or []) if l.get('href') == used), None) or entry.get('capture')}
         sentence = sentences[0]
         engine, hits, tried = search(page, sentence)
         own = domain_of(r['pages']['home'])
