@@ -1,0 +1,10 @@
+{
+  "group": "Tubbs Brothers",
+  "group_site": "https://www.tubbsbrothers.com",
+  "stores": [
+    { "store": "Tubbs Brothers Chrysler", "city": "Sandusky", "state": "MI", "url": "https://www.tubbsbrothers.net", "brand": "Chrysler Dodge Jeep Ram",
+      "towns": ["Sandusky", "Port Huron", "Bad Axe", "Caro", "Lapeer"] },
+    { "store": "Tubbs Brothers Ford", "city": "Sandusky", "state": "MI", "url": "https://www.tubbsbrothersford.com", "brand": "Ford",
+      "towns": ["Sandusky", "Port Huron", "Bad Axe", "Caro", "Lapeer"] }
+  ]
+}
