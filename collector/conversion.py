@@ -72,6 +72,7 @@ def phone_ctas(page, site_host, price_stack_y, price_stack_bottom, price_labels)
     seen = set()
     tels = set()
     stack = []
+    tabs = []
     for b in buttons:
         t = b['text']
         if b['y'] < top or b['y'] > bottom or skip.search(t) or re.search(r'\$\s?\d', t):
@@ -89,11 +90,15 @@ def phone_ctas(page, site_host, price_stack_y, price_stack_bottom, price_labels)
         if key in seen:
             continue
         seen.add(key)
+        # the price panel's tabs (BUY, FINANCE, LEASE, CASH) switch the stack's view; they are not CTAs (Jonathan, Oct 1, 2026)
+        if re.fullmatch(r'(buy|finance|lease|cash|purchase|buy now|finance now)', t, re.I):
+            tabs.append({'text': t, 'y_phone': b['y'], 'screen': b['y'] // 823 + 1})
+            continue
         host = b['host'] or (b['frame'] if b['frame'] and site_host not in b['frame'] else '')
         leaves = bool(host) and site_host not in host and not b['tel']
         stack.append({'text': b['text'], 'host': host or site_host, 'href': b['href'], 'leaves_site': leaves, 'y_phone': b['y'], 'tel': b['tel'], 'target': b['target'],
                       'frame': b['frame'], 'screen': b['y'] // 823 + 1})
-    return stack[:14], buttons
+    return stack[:14], buttons, tabs
 
 
 def phone_pass(store, browser, url, price_texts, cta_texts):
@@ -116,12 +121,22 @@ def phone_pass(store, browser, url, price_texts, cta_texts):
         page.wait_for_timeout(800)
         after = page.evaluate(snippets.VDP_MOBILE, args)
         site_host = url.split('/')[2].replace('www.', '')
-        cta_stack, all_buttons = phone_ctas(page, site_host, after['priceY'], after['priceBottom'], store.results.get('conversion', {}).get('_price_labels', []))
+        cta_stack, all_buttons, tabs = phone_ctas(page, site_host, after['priceY'], after['priceBottom'], store.results.get('conversion', {}).get('_price_labels', []))
         # a digital-retail iframe (Capital One through autodriven, Roadster, and the like) that stays 0 x 0 in the
-        # headless phone context never shows its buttons here; Natchez Nissan's did not size in 38 s (Sep 30, 2026)
-        dead = page.evaluate("""() => [...document.querySelectorAll('iframe')].filter(f => /autodriven|capitalone|digital-retail|roadster|carnow|drive\\.|gubagoo|modal|tekion|darwin|dealer-fx/i.test(f.src || '') && f.getBoundingClientRect().width < 10).map(f => (f.src || '').split('/')[2]).filter(Boolean)""")
+        # headless phone context never shows its buttons here; Natchez Nissan's did not size in 38 s (Sep 30, 2026).
+        # What the render shows where it sits is recorded: its parent's place on the page and the buttons seen there.
+        dead = page.evaluate("""() => [...document.querySelectorAll('iframe')].filter(f => /autodriven|capitalone|digital-retail|roadster|carnow|drive\\.|gubagoo|modal|tekion|darwin|dealer-fx/i.test(f.src || '') && f.getBoundingClientRect().width < 10)
+            .map(f => { let p = f.parentElement; while (p && p.getBoundingClientRect().height === 0 && p !== document.body) p = p.parentElement; const r = p ? p.getBoundingClientRect() : null;
+              return { host: (f.src || '').split('/')[2] || '', parent: p ? (p.className || p.tagName).toString().slice(0, 50) : null, y: r ? Math.round(r.top + scrollY) : null, h: r ? Math.round(r.height) : null }; })""")
         if dead:
-            store.not_captured('VDP digital-retail buttons in the phone render', f'the {", ".join(sorted(set(dead)))} iframe stayed 0 x 0 in the headless phone context, so its buttons (payment, pre-qualification, trade value) are not in the CTA stack; Chrome confirms them')
+            for d in dead:
+                near = [b for b in all_buttons if d['y'] is not None and d['y'] - 40 <= b['y'] <= d['y'] + (d['h'] or 0) + 40]
+                d['screen'] = None if d['y'] is None else d['y'] // 823 + 1
+                d['buttons_shown_there'] = [b['text'] for b in near][:8]
+                d['buttons_shown_count'] = len(near)
+            hosts = sorted({d['host'] for d in dead if d['host']})
+            store.not_captured('VDP digital-retail buttons in the phone render', f'the {", ".join(hosts)} iframe stayed 0 x 0 in the headless phone context, so its buttons (payment, pre-qualification, trade value) are not in the CTA stack; Chrome confirms them. '
+                               + '; '.join(f'at its place (screen {d["screen"]}, y {d["y"]}) the render shows {d["buttons_shown_count"]} button(s){": " + ", ".join(d["buttons_shown_there"]) if d["buttons_shown_there"] else ""}' for d in dead))
         out = {'source': "the collector's own phone render (412 x 823, device scale 1, mobile Chrome user agent)", 'rendered_at': rendered_at,
                'popup_window_s': config.POPUP_POLL_MS // 1000, 'popup_hit': poll.get('hit'), 'popup_open_s': poll.get('popupSec'), 'load_s': poll.get('loadSec'),
                'screens': screens, 'render_height_px': None,
@@ -129,7 +144,7 @@ def phone_pass(store, browser, url, price_texts, cta_texts):
                'doc_height': after['docHeight'], 'popup_on_load': bool(onload['vendor'] or onload['fixed'] or poll.get('hit')), 'popup_detail': onload['vendor'] or onload['fixed'] or poll.get('hit'),
                'complyauto_panel_on_load': bool(onload['complyauto']), 'complyauto_text': onload['complyauto'],
                'promo_banner_top': bool(PROMO.search(onload['topText'] or '')), 'top_third_text': onload['topText'][:300], 'tel_links': onload['tel'],
-               'cta_stack': cta_stack, 'buttons_all': all_buttons[:80]}
+               'cta_stack': cta_stack, 'price_panel_tabs': tabs, 'digital_retail_iframes': dead, 'buttons_all': all_buttons[:80]}
         from PIL import Image
         out['render_height_px'] = Image.open(raw).size[1]
         for k, y in (('swipes_to_price_stack', after['priceY']), ('swipes_to_cta_stack', after['ctaY']), ('swipes_to_full_price_stack', after['priceBottom']), ('swipes_to_full_cta_stack', after['ctaBottom'])):
@@ -230,6 +245,7 @@ def vdp(store, page, report_page=None, browser=None):
                 # the CTA stack is what the phone shows (iframes included); the desktop read is kept beside it
                 conv['ctas'] = ml['cta_stack']
                 conv['cta_count'] = len(ml['cta_stack'])
+                conv['price_panel_tabs'] = ml.get('price_panel_tabs') or []
                 conv['cta_stack_source'] = 'the phone render\'s DOM, iframes included'
                 conv['swipes_to_cta_stack'] = None
                 ys = [c['y_phone'] for c in ml['cta_stack']]
