@@ -132,6 +132,9 @@ def prepare(page, zoom=None, keep_overlays=False):
     if zoom:
         page.evaluate(snippets.ZOOM, zoom)
         page.wait_for_timeout(400)
+    if not keep_overlays:
+        # a scroll-triggered pop-up opens during the scroll pass, after the first sweep: sweep again right before the shot
+        close_overlays(page)
 
 
 def shot(store, page, name, full_page=False, clip=None, zoom=None, keep_overlays=False):

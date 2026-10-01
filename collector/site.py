@@ -113,9 +113,16 @@ def setup_pages(store, page):
                             'srp_header.png', pad=20, zoom=config.DEALER_ZOOM)
     except Exception as e:
         store.not_captured('srp_header.png', str(e))
+    # the inventory script fills the cards after the load event (up to 12 s under three parallel stores), so the first
+    # vehicle is polled for, and the count is read again once the cards are there
     vdp = page.evaluate(FIRST_VEHICLE)
+    for _ in range(8):
+        if vdp:
+            break
+        page.wait_for_timeout(1500)
+        vdp = page.evaluate(FIRST_VEHICLE)
     if not vdp:
-        store.check('setup_vdp', 'failed', 'no vehicle card with a price on the SRP')
+        store.check('setup_vdp', 'failed', 'no vehicle card with a price on the SRP after 13.5 s')
         return
     captures.goto(page, vdp['href'])
     r['pages']['vdp'] = page.url.split('?')[0] if 'priorityType' in page.url else page.url
