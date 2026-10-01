@@ -187,8 +187,12 @@ REPORT_BOXES = """() => {
   const has = (e, s) => (e.textContent || '').includes(s);
   const area = e => { const r = e.getBoundingClientRect(); return r.width * r.height; };
   const cards = all.filter(e => has(e, 'Core Web Vitals Assessment') && (has(e, 'Latest 28-day period') || /No Data|sufficient real-world/i.test(e.textContent || ''))).sort((a, b) => area(a) - area(b));
-  const card = cards[0] || null;
+  let card = cards[0] || null;
   let field = null, fieldText = null;
+  if (!card) {   // no field data: the section reads "Discover what your real users are experiencing" then "No Data"
+    const nd = all.filter(e => has(e, 'Discover what your real users') && /No Data/.test(e.textContent || '') && !has(e, 'Diagnose performance')).sort((a, b) => area(a) - area(b));
+    if (nd[0]) { const b = box(nd[0]); field = { x: b.x, y: b.y, w: b.w, h: Math.max(60, b.h) }; fieldText = 'Core Web Vitals Assessment: No Data'; }
+  }
   if (card) {
     const cb = box(card);
     const other = [...card.querySelectorAll('*')].filter(e => vis(e) && /^other notable metrics$/i.test((e.textContent || '').trim())).sort((a, b) => area(a) - area(b))[0];
@@ -419,11 +423,11 @@ def home(store, rp, url):
     # more; every run stays in runs[] marked had_warning, and the quoted run is one without a warning when there is one
     warned = [ff for ff in ('mobile', 'desktop') if (pics['numbers'].get(ff) or {}).get('run_warnings')]
     earlier = {}
+    extra = {}
     if warned:
         store.log(f'PageSpeed home report warned on {", ".join(warned)} ({(pics["numbers"][warned[0]]["run_warnings"] or [""])[0][:80]}); running the report once more')
         earlier = {ff: n for ff, n in pics['numbers'].items()}
         pics2 = report_pictures(store, rp, url, 'home')
-        extra = {}
         if pics2['numbers']:
             for ff in ('mobile', 'desktop'):
                 a, b = earlier.get(ff), pics2['numbers'].get(ff)

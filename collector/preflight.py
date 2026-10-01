@@ -31,12 +31,17 @@ def run(store, page, platforms):
             resp = captures.goto(page, url, wait='domcontentloaded')
             pf['status'] = resp.status if resp else None
             pf['loads'] = bool(resp) and resp.status < 400
+            if not pf['loads']:
+                # the page's own words (Bay Mitsubishi, Oct 1, 2026: 403 "The website you are attempting to visit is not active")
+                words = page.evaluate('() => (document.body && document.body.innerText || "").trim().slice(0, 160).replace(/\\s+/g, " ")')
+                pf['notes'].append(f'HTTP {pf["status"]} {page.title() or ""}: {words}'.strip())
+                pf['final_host'] = urlparse(page.url).netloc
             break
         except Exception as e:
             pf['notes'].append(f'load attempt {attempt}: {type(e).__name__}: {e}')
     if not pf['loads']:
         store.results['preflight'] = pf
-        store.check('preflight', 'failed', 'the site does not load: ' + '; '.join(pf['notes'][-2:]))
+        store.check('preflight', 'failed', 'the site does not load: ' + ('; '.join(pf['notes'][-2:]) or f'HTTP {pf["status"]}'))
         return pf
     pf['final_host'] = urlparse(page.url).netloc
     pf['redirected_to_other_domain'] = domain_of(page.url) != domain_of(url)

@@ -223,6 +223,8 @@ def compare(spec, out_dir, group_results):
         mism = []
         base_addr = address_key(ah.get('site_address'))
         for rd in reads[1:]:
+            if rd['where'] == 'Bing':
+                continue   # Bing against the site is already a flag of its own (flags.py)
             if rd.get('address') and base_addr and address_key(rd['address']) != base_addr:
                 mism.append({'what': 'address', 'where': rd['where'], 'site': ah.get('site_address'), 'other': rd['address'], 'capture': rd.get('capture')})
         site_hours = {k: norm_hours(v) for k, v in (reads[0]['hours'] if reads else {}).items()} if reads else {}
@@ -237,9 +239,12 @@ def compare(spec, out_dir, group_results):
                     if diffs:
                         mism.append({'what': 'hours', 'dept': dept, 'where': rd['where'], 'diffs': diffs, 'capture': rd.get('capture')})
         r['cross_site'] = {'reads': reads, 'mismatches': mism, 'compared_at': now_et()}
-        for m in mism:
-            if m['what'] == 'address':
-                st.flag('address_format_group', 'Address and Hours', {'site': m['site'], m['where']: m['other']}, 'one format', 'Use one address format on Google, Bing, the site and the group site', [c for c in (m.get('capture'),) if c])
-            else:
-                st.flag('hours_group', 'Address and Hours', m['diffs'], 'same schedule', 'Confirm the hours and match them on each site, Google and Bing', [c for c in (m.get('capture'),) if c])
+        addr_m = [m for m in mism if m['what'] == 'address']
+        if addr_m:
+            st.flag('address_format_group', 'Address and Hours', {'site': ah.get('site_address'), **{m['where']: m['other'] for m in addr_m}}, 'one format',
+                    'Use one address format on Google, Bing, the site and the group site', [m['capture'] for m in addr_m if m.get('capture')])
+        hours_m = [m for m in mism if m['what'] == 'hours']
+        if hours_m:
+            st.flag('hours_group', 'Address and Hours', [{m['where']: m['diffs']} for m in hours_m], 'same schedule',
+                    'Confirm the hours and match them on each site, Google and Bing', [m['capture'] for m in hours_m if m.get('capture')])
         st.finish(close=False)

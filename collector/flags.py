@@ -26,8 +26,9 @@ def norm_hours(text):
 
 
 def address_key(a):
-    """An address with every format difference kept (W. against W, Street against St), only case and spacing dropped."""
-    return re.sub(r'\s+', ' ', (a or '').strip().lower()) or None
+    """An address with every format difference kept (W. against W, Street against St); only case, spacing, commas and
+    line breaks dropped, since a card prints the city on its own line where a schema joins it with a comma."""
+    return re.sub(r'\s+', ' ', (a or '').replace(',', ' ').replace('\n', ' ').strip().lower()) or None
 
 
 def apply(store):
@@ -161,6 +162,9 @@ def apply(store):
             if m and int(m.group(1)) < max(yrs):
                 # slide alts come from the page source; the home page capture stands in until a slide is captured
                 F('slider_stale', 'Content Quality', sl['alt'], max(yrs), f'The home page slider still runs a {m.group(1)} slide', [sl.get('capture') or 'captures/popup_before.png'])
+    rc = r.get('research_content') or {}
+    if rc.get('other_dealer_domains'):
+        F('syndicated_research', 'Organic Search', rc['other_dealer_domains'], 0, 'Syndicated research content, not providing value', [c for c in (rc.get('capture'),) if c])
     b = r.get('blog') or {}
     if b and (b.get('posts') == 0 or b.get('no_posts_text')):
         F('blog_empty', 'Empty Image Spaces', b.get('no_posts_text') or 0, 1, 'The blog has no posts', [b.get('capture')])
