@@ -77,3 +77,29 @@ the golden fixture go beside it, since the kickoff has the VM session read the s
 
 Node is only needed for the Lighthouse report generator if the VM build chooses to render reports locally instead of
 opening pagespeed.web.dev; the default design opens the report page, so Node is optional.
+
+## The sheet trigger (the collector starts itself)
+
+`python3 -m collector trigger` reads the Audit Requests tab of the Dealer Audit Requests sheet (read-only), runs the
+collector on every row whose Status and Audit Results are blank, and Taildrops each zip to the Desktop PC, where the
+scheduled Chrome run picks it up. It never writes to the sheet. A cron line on the VM runs it every 15 minutes; a lock
+file keeps two ticks from colliding, and state/trigger.json remembers which rows ran (a row runs again only when its
+Timestamp changes, which is what a re-run on the sheet does).
+
+One-time setup, in the same Google Cloud project as the PageSpeed key (free, no billing):
+
+1. APIs & Services > Library: enable the Google Sheets API.
+2. IAM & Admin > Service Accounts > Create: name it `audit-collector`, no roles needed. Open it, Keys > Add key >
+   JSON, and download the file.
+3. Copy the key to the VM as `~/dealer-audit-collector/.secrets/service-account.json` (the folder is git-ignored):
+   from PowerShell, `scp C:\Users\jon\Downloads\<key>.json jonneale83@agents:~/dealer-audit-collector/.secrets/service-account.json`
+   after `ssh jonneale83@agents mkdir -p ~/dealer-audit-collector/.secrets`.
+4. Share the Dealer Audit Requests sheet with the service account's email (it ends in `.iam.gserviceaccount.com`,
+   shown on the service account's page) as a Viewer. Viewer is all the trigger ever uses.
+5. On the VM: `python3 -m collector trigger --dry-run` lists what is waiting without starting anything. The cron line
+   (installed with `crontab -l` to check) is:
+
+   `*/15 * * * * cd /home/jonneale83/dealer-audit-collector && .venv/bin/python3 -m collector trigger >> state/trigger.log 2>&1`
+
+The log is `state/trigger.log`; each run's request file lands in `requests/auto/` and its output under `out/auto/`.
+Until the key is in place the trigger logs "no service account key" every 15 minutes and does nothing else.

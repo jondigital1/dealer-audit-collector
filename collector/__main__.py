@@ -4,6 +4,7 @@
   python3 -m collector preflight STORE.json                          only the pre-flight, in seconds
   python3 -m collector platform-test                                 Decision 7: which platforms load headless
   python3 -m collector handoff DIR                                   zip each finished store and send it
+  python3 -m collector trigger [--dry-run] [--csv FILE] [--once]      read the requests sheet and run what is waiting
 
 A store's run, in the skill's order: pre-flight; set-up (the three pages); PageSpeed on the home page only, mobile
 and desktop (the report page, the API as fallback, the treemap); pop-up timing in a fresh context; SEO META fields;
@@ -91,6 +92,9 @@ def main(argv):
     if cmd == 'platform-test':
         platforms.run()
         return 0
+    if cmd == 'trigger':
+        from . import trigger
+        return trigger.main(argv[1:])
     if cmd == 'handoff':
         print(handoff.run(argv[1] if len(argv) > 1 else 'out'))
         return 0

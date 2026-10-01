@@ -4,3 +4,6 @@ out/
 __pycache__/
 *.pyc
 *.zip
+.secrets/
+state/
+requests/auto/

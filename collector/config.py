@@ -84,3 +84,7 @@ POPUP_VENDORS = [
 # the phone render): dbs's price-drop modal opens on inner pages a few minutes into a session, renders after the
 # capture sweeps and would sit on every evidence shot. The block is recorded in the store's noticed list.
 CAPTURE_BLOCKED_SCRIPTS = ['dbs-prod-pixel.s3.amazonaws.com']
+
+# The Dealer Audit Requests sheet (references/12_requests_sheet.md) and its Audit Requests tab, read-only by the trigger
+REQUESTS_SHEET_ID = '1XA3JGSlNheSZGBmBFfgSYXlBaWM7l43K-6Jby_yWmXo'
+REQUESTS_TAB_GID = 1668779070
