@@ -135,10 +135,15 @@ def new_count(store, page, base_url):
             resp = captures.goto(page, c, wait='domcontentloaded')
             if not resp or resp.status != 200 or site.NOT_FOUND.search(page.title() or ''):
                 continue
-            page.wait_for_timeout(1500)
-            cnt = page.evaluate(site.SRP_COUNT)
+            # the count renders after the inventory script runs; up to 12 s for it under three parallel stores
             words = r'(\d[\d,]*)\s*(new\s+)?(vehicles?|results?|matches?|cars?|listings?|for sale|in stock|available|new\b)'
-            m = re.search(words, cnt['el'] or '', re.I) or re.search(words, cnt['body'], re.I)
+            m = None
+            for _ in range(8):
+                page.wait_for_timeout(1500)
+                cnt = page.evaluate(site.SRP_COUNT)
+                m = re.search(words, cnt['el'] or '', re.I) or re.search(words, cnt['body'], re.I)
+                if m:
+                    break
             if m:
                 return {'url': page.url, 'count': int(m.group(1).replace(',', '')), 'text': m.group(0), 'read_at': now_et()}
             return {'url': page.url, 'count': None, 'text': None, 'note': 'inventory page found, no count read'}
@@ -269,7 +274,8 @@ def compare(spec, out_dir, group_results):
             by_text = {}
             for m in addr_m:
                 by_text.setdefault(m['other'], {'places': [], 'captures': []})
-                by_text[m['other']]['places'].append(m['where'])
+                if m['where'] not in by_text[m['other']]['places']:
+                    by_text[m['other']]['places'].append(m['where'])
                 if m.get('capture') and m['capture'] not in by_text[m['other']]['captures']:
                     by_text[m['other']]['captures'].append(m['capture'])
             st.flag('address_format_group', 'Address and Hours', {'site': ah.get('site_address'), **{t: v['places'] for t, v in by_text.items()}}, 'one format',
