@@ -1,3 +1,5 @@
+import json
+import os
 """Browser contexts and captures: one fresh profile per store at the Desktop PC's viewport, every deck capture at
 scale 1, the hide-before-capture list, full-page captures after a scroll pass, crops with the full frame kept in
 captures/raw/, red boxes on the exact spot, and the contact sheet."""
@@ -40,7 +42,14 @@ class Browser:
         for the pop-up timing pass with the automation flag off. Use as a context manager."""
         return _Sibling(self, automation_flag)
 
-    def context(self):
+    def context(self, block_lead_modals=False):
+        ctx = self._context()
+        if block_lead_modals:
+            for host in config.CAPTURE_BLOCKED_SCRIPTS:
+                ctx.route(f'**://{host}/**', lambda route: route.abort())
+        return ctx
+
+    def _context(self):
         return self.browser.new_context(viewport=config.VIEWPORT, device_scale_factor=1, user_agent=self.user_agent,
                                         locale=config.LOCALE, timezone_id=config.TIMEZONE, ignore_https_errors=False)
 
@@ -114,6 +123,11 @@ def close_overlays(page):
     closed += hidden
     for c in closed:
         CLOSED_OVERLAYS.append((page.url, c.get('what'), c.get('text')))
+    if os.environ.get('COLLECTOR_DEBUG_OVERLAYS'):
+        try:
+            print('overlays', page.url, json.dumps(page.evaluate(snippets.DUMP_OVERLAYS)), 'frames', [f.url[:60] for f in page.frames[1:]], flush=True)
+        except Exception as e:
+            print('overlays dump failed', str(e)[:80], flush=True)
     return closed
 
 
@@ -133,7 +147,10 @@ def prepare(page, zoom=None, keep_overlays=False):
         page.evaluate(snippets.ZOOM, zoom)
         page.wait_for_timeout(400)
     if not keep_overlays:
-        # a scroll-triggered pop-up opens during the scroll pass, after the first sweep: sweep again right before the shot
+        # a scroll-triggered pop-up opens during the scroll pass, after the first sweep: sweep again right before the
+        # shot, and once more after a short wait for one that renders late
+        close_overlays(page)
+        page.wait_for_timeout(700)
         close_overlays(page)
 
 

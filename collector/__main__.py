@@ -36,7 +36,9 @@ def collect_store(request, out_dir, plat):
     store.log(f'start {request.get("store")} {request["url"]}')
     try:
         with captures.Browser() as b:
-            ctx = b.context()
+            ctx = b.context(block_lead_modals=True)
+            if config.CAPTURE_BLOCKED_SCRIPTS:
+                store.noticed(f'blocked for the evidence captures only (not the pop-up timing pass): {", ".join(config.CAPTURE_BLOCKED_SCRIPTS)}')
             page = ctx.new_page()
             pf = step(store, 'preflight', preflight.run, store, page, plat)
             if not pf or not pf['loads']:
@@ -65,7 +67,9 @@ def collect_store(request, out_dir, plat):
     except Exception as e:
         store.check('browser', 'failed', f'{type(e).__name__}: {str(e)[:300]}')
     # pop-ups closed before captures (inner-page pop-ups are recap material, never timed: references/03_off_script.md)
-    closed = [c for c in captures.CLOSED_OVERLAYS if store.results.get('domain') and store.results['domain'].split('.')[0] in c[0]]
+    from urllib.parse import urlparse
+    own = {store.results.get('domain'), (store.results.get('preflight') or {}).get('final_host', '').replace('www.', '')}
+    closed = [c for c in captures.CLOSED_OVERLAYS if urlparse(c[0]).netloc.replace('www.', '') in own or any(d and urlparse(c[0]).netloc.endswith(d) for d in own)]
     if closed:
         texts = {}
         for url, what, text in closed:
@@ -109,7 +113,7 @@ def main(argv):
             with captures.Browser() as b:
                 for s in stores:
                     st = Store(s, out)
-                    ctx = b.context()
+                    ctx = b.context(block_lead_modals=True)
                     pf = preflight.run(st, ctx.new_page(), plat)
                     ctx.close()
                     print(json.dumps({s['url']: pf}, indent=1))

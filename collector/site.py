@@ -364,10 +364,15 @@ def menu_crawl(store, page, max_items=72):
                         page.mouse.move(geo['top']['cx'], geo['top']['cy'])
                         hovered = 'overflow then top'
                         break
-            page.wait_for_timeout(700)
-            geo = page.evaluate(snippets.MENU_GEOMETRY, [item['label'], item.get('href'), item['top']])
-            if geo['item'] and geo['item']['visible'] and hovered != 'top':
-                pass   # the item is showing; the mouse stays where it opened the menu
+            # the panel fills in after the hover (Dealer Inspire's mega menus draw their columns late in a long session):
+            # wait until the item itself is visible, up to 4 s
+            for _ in range(8):
+                page.wait_for_timeout(500)
+                geo = page.evaluate(snippets.MENU_GEOMETRY, [item['label'], item.get('href'), item['top']])
+                if geo['item'] and geo['item']['visible']:
+                    break
+            else:
+                item['menu_shot_note'] = 'the item never became visible under the hovered entry'
             page.evaluate(snippets.HIDE, config.HIDE_BEFORE_CAPTURE)
             page.evaluate(snippets.MENU_OUTLINE, [item['label'], item.get('href')])
             name = f'menu_{slug(item["label"] or (item["top"] + " " + item["path"]))}.png'

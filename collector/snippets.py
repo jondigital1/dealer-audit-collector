@@ -404,7 +404,8 @@ CLOSE_OVERLAY = """() => { const vis = e => { const r = e.getBoundingClientRect(
     const key = (e.className || '').toString() + ' ' + e.id; if (/ca-cookieconsent|ca-banner|onetrust|cookie|consent/i.test(key)) continue;
     if (e.closest('header, nav, [class*="header"], [class*="navbar"], [class*="nav-"]')) continue;
     const r = e.getBoundingClientRect(); const big = r.width * r.height > 0.2 * innerWidth * innerHeight;
-    if (!big && !/dbs-|modal|popup|pop-up|overlay|lightbox|dialog/i.test(key)) continue;
+    const mid = r.left < innerWidth / 2 && r.right > innerWidth / 2 && r.top < innerHeight / 2 && r.bottom > innerHeight / 2 && (+cs.zIndex || 0) >= 100;
+    if (!big && !mid && !/dbs-|modal|popup|pop-up|overlay|lightbox|dialog/i.test(key)) continue;
     const c = all(e).filter(c => c.matches('button, a, [role="button"], [class*="close"], [aria-label]')).find(c => { const cr = c.getBoundingClientRect(); if (cr.width === 0) return false;
       return /close|dismiss/i.test(c.getAttribute('aria-label') || '') || /(^|[\\s_-])close([\\s_-]|$)/i.test((c.className || '').toString()) || /^[\\u00d7\\u2715xX]$/.test((c.innerText || '').trim()); });
     if (c) { const text = (e.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 140); c.click(); out.push({ what: e.tagName.toLowerCase() + '.' + key.trim().split(/\\s+/).slice(0, 2).join('.'), text }); if (out.length >= 2) break; } }
@@ -424,7 +425,17 @@ HIDE_OVERLAY = """() => { const out = []; const vis = e => { const r = e.getBoun
     const key = (e.className || '').toString() + ' ' + e.id; if (/ca-cookieconsent|ca-banner|onetrust|cookie|consent/i.test(key)) continue;
     if (e.closest('header, nav, [class*="header"], [class*="navbar"], [class*="nav-"]')) continue;
     const r = e.getBoundingClientRect(); const mid = r.left < innerWidth / 2 && r.right > innerWidth / 2 && r.top < innerHeight / 2 && r.bottom > innerHeight / 2 && r.width < innerWidth * 0.9;
-    if (!/dbs-|modal|popup|pop-up|overlay|lightbox|dialog/i.test(key) && !(e.tagName === 'IFRAME' && mid)) continue;
+    if (!/dbs-|modal|popup|pop-up|overlay|lightbox|dialog/i.test(key) && !(mid && (e.tagName === 'IFRAME' || (+cs.zIndex || 0) >= 100))) continue;
     const text = (e.innerText || e.title || e.src || '').replace(/\\s+/g, ' ').trim().slice(0, 140); e.style.setProperty('display', 'none', 'important');
     out.push({ what: e.tagName.toLowerCase() + '.' + key.trim().split(/\\s+/).slice(0, 2).join('.'), text }); if (out.length >= 3) break; }
   return out; }"""
+
+# Diagnostic (COLLECTOR_DEBUG_OVERLAYS=1): every fixed or high z-index element over the page and every frame, so a pop-up
+# the sweeps miss can be seen in the run log
+DUMP_OVERLAYS = """() => { const all = root => { const out = []; for (const e of root.querySelectorAll('*')) { out.push(e); if (e.shadowRoot) out.push(...all(e.shadowRoot)); } return out; };
+  const out = [];
+  for (const e of all(document.body)) { const cs = getComputedStyle(e); const z = +cs.zIndex || 0; const r = e.getBoundingClientRect();
+    if (!(cs.position === 'fixed' || cs.position === 'absolute' && z >= 100 || cs.position === 'sticky') || r.width < 40 || r.height < 40 || cs.visibility === 'hidden' || cs.display === 'none') continue;
+    out.push([e.tagName.toLowerCase(), ((e.className || '').toString() + ' #' + e.id).trim().slice(0, 60), [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)], cs.position, z, (e.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 40)]); }
+  const frames = [...document.querySelectorAll('iframe')].map(f => { const r = f.getBoundingClientRect(); return [f.src.slice(0, 70), [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)], getComputedStyle(f).position]; }).filter(f => f[1][2] > 40 && f[1][3] > 40);
+  return { fixed: out.slice(0, 12), frames: frames.slice(0, 12) }; }"""

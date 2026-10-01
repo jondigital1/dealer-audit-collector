@@ -166,7 +166,7 @@ def run(spec, out_dir, plat):
     gs.log(f'group site {spec["group_site"]} for {len(stores)} stores')
     try:
         with captures.Browser() as b:
-            ctx = b.context()
+            ctx = b.context(block_lead_modals=True)
             page = ctx.new_page()
             pf = preflight.run(gs, page, plat)
             if pf and pf['loads'] and pf.get('platform_headless') != 'chrome_only':

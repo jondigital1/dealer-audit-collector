@@ -79,3 +79,8 @@ POPUP_VENDORS = [
     {'vendor': 'Tecobi', 'selector': '[class*="tecobi"], [id*="tecobi"]'},
     {'vendor': 'ComplyAuto', 'selector': '[class*="complyauto"], [id*="complyauto"], iframe[src*="complyauto"]'},
 ]
+
+# Lead-modal vendors whose script is blocked in the capture context only (never in the pop-up timing pass, never in
+# the phone render): dbs's price-drop modal opens on inner pages a few minutes into a session, renders after the
+# capture sweeps and would sit on every evidence shot. The block is recorded in the store's noticed list.
+CAPTURE_BLOCKED_SCRIPTS = ['dbs-prod-pixel.s3.amazonaws.com']
