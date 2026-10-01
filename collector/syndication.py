@@ -18,10 +18,10 @@ NOT_DEALERS = ('wikipedia.org', 'youtube.com', 'facebook.com', 'edmunds.com', 'k
 # A distinctive sentence from the page's own copy: a paragraph in the content (not the header, nav or footer), split
 # into sentences, the first of 12 to 20 words that names no dealer, town or price and has no link-only words
 PICK_SENTENCE = """([avoid, lo, hi]) => { const bad = new RegExp(avoid.filter(Boolean).map(s => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|') || 'zzzzzz', 'i');
-  const paras = [...document.querySelectorAll('main p, article p, [class*="content"] p, [class*="research"] p, [class*="body"] p, section p, p')].filter(p => !p.closest('header, nav, footer, [class*="header"], [class*="footer"], [class*="nav"], [class*="disclaimer"], [class*="sidebar"]') && p.getBoundingClientRect().width > 200);
+  const paras = [...document.querySelectorAll('main p, article p, [class*="content"] p, [class*="research"] p, [class*="body"] p, section p, p')].filter(p => !p.closest('header, nav, footer, [class*="header"], [class*="footer"], [class*="nav"], [class*="disclaimer"], [class*="sidebar"], [class*="cookie"], [id*="cookie"], [class*="consent"], [id*="consent"], [class*="privacy"]') && p.getBoundingClientRect().width > 200);
   const out = [];
   for (const p of paras) { const t = (p.innerText || '').replace(/\\s+/g, ' ').trim(); if (t.length < 80) continue;
-    for (const s of t.split(/(?<=[.!?])\\s+/)) { const w = s.trim().replace(/[\\u201c\\u201d"]/g, ''); const n = w.split(/\\s+/).length; if (n < lo || n > hi) continue; if (bad.test(w) || /\\$|\\d{4}|%|click|call us|visit us|contact/i.test(w)) continue; out.push(w); if (out.length >= 3) return out; } }
+    for (const s of t.split(/(?<=[.!?])\\s+/)) { const w = s.trim().replace(/[\\u201c\\u201d"]/g, ''); const n = w.split(/\\s+/).length; if (n < lo || n > hi) continue; if (bad.test(w) || /\\$|\\d{4}|%|click|call us|visit us|contact|cookies?|privacy|consent|terms|agree|liab|warrant|lawful|jurisdiction|opt out|browser|these terms|the site/i.test(w)) continue; if ((w.match(/[A-Z]/g) || []).length > (w.match(/[a-z]/g) || []).length) continue; out.push(w); if (out.length >= 3) return out; } }
   return out; }"""
 
 # Bing wraps every result link in bing.com/ck/a?u=a1<base64url of the target>; the snippet sits in .b_caption. When the
@@ -111,7 +111,8 @@ def check(store, page):
     avoid = [r.get('store') or '', r.get('city') or '', (r.get('store') or '').split(' ')[0], req.get('state') or ''] + list(req.get('towns') or [])
     # a showroom index (Bay Lincoln's /models.htm: model cards, no copy) has nothing to search; the first model page the
     # research crawl opened stands in, one model per store
-    candidates = [entry['url']] + [l['href'] for l in (r.get('research_links') or []) if l.get('result') == 'ok' and l.get('href')]
+    boiler = re.compile(r'terms|privacy|cookie|legal|sitemap|accessib|disclaimer', re.I)
+    candidates = [entry['url']] + [l['href'] for l in (r.get('research_links') or []) if l.get('result') == 'ok' and l.get('href') and not boiler.search(l['href'])]
     try:
         sentences, picked_range, used = [], None, None
         for url in candidates[:4]:

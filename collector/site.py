@@ -720,6 +720,8 @@ def pages(store, page):
             # every model card's link on the page (LEARN MORE, View Details, the model name), opened the way the menu is
             # crawled: 404, home redirect, off-site, or ok. Natchez Nissan's LEAF card opened /2024-nissan-leaf.html, a 404.
             cards = page.evaluate(snippets.RESEARCH_CARD_LINKS)
+            # a research card links to a model page or an OEM page; site-wide links (terms of use, privacy, sitemap, accessibility) are not research links
+            cards = [c for c in cards if not re.search(r'terms|privacy|cookie|legal|sitemap|accessib|disclaimer', (c.get('href') or '') + ' ' + (c.get('text') or c.get('label') or ''), re.I)]
             entry['card_links'] = crawl_links(store, page, cards, dealer=domain_of(home), prefix=f'research_{slug(l["label"])}', max_links=24)
             r['cx'].append(entry)
             if entry['card_links']:
