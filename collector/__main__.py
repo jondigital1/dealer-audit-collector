@@ -15,7 +15,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import bing, captures, config, conversion, flags, handoff, pagespeed, platforms, popups, preflight, site, spyfu
+from . import bing, captures, config, conversion, flags, group, handoff, pagespeed, platforms, popups, preflight, site, spyfu
 from .store import Store
 
 
@@ -70,31 +70,6 @@ def collect_store(request, out_dir, plat):
     return store
 
 
-def group_home(spec, out_dir, plat):
-    """A group request: the group site's home page gets the home-page run too (PageSpeed mobile and desktop, the
-    treemap), into DIR/group/, the way SPEC.md's roll-up wants it. Nothing else runs on the group site here."""
-    req = {'store': spec.get('group') or 'group site', 'url': spec['group_site'], 'group': spec.get('group'), 'group_site': None}
-    store = Store(req, out_dir, folder='group')
-    store.log(f'group site home page: {spec["group_site"]}')
-    try:
-        with captures.Browser() as b:
-            ctx = b.context()
-            page = ctx.new_page()
-            pf = step(store, 'preflight', preflight.run, store, page, plat)
-            if pf and pf['loads'] and pf.get('platform_headless') != 'chrome_only':
-                store.results['pages']['home'] = page.url
-                rp = ctx.new_page()
-                step(store, 'pagespeed_home', pagespeed.home, store, rp, page.url)
-                rp.close()
-            ctx.close()
-    except Exception as e:
-        store.check('browser', 'failed', f'{type(e).__name__}: {str(e)[:300]}')
-    step(store, 'flags', flags.apply, store)
-    step(store, 'contact_sheet', captures.contact_sheet, store)
-    store.finish()
-    return store
-
-
 def main(argv):
     if len(argv) < 1:
         print(__doc__)
@@ -114,9 +89,13 @@ def main(argv):
         plat = platforms.load()
         stores = spec['stores'] if 'stores' in spec else [spec]
         for s in stores:
-            for k in ('group', 'group_site', 'sister_sites'):
+            for k in ('group', 'group_site'):
                 if k in spec and k not in s:
                     s[k] = spec[k]
+            # a store's sister sites: the group's other stores plus any the request lists (group-wide or per store)
+            from .store import domain_of
+            others = [domain_of(o['url']) for o in stores if o is not s]
+            s['sister_sites'] = sorted(set(others) | {domain_of(x) for x in (s.get('sister_sites') or [])} | {domain_of(x) for x in (spec.get('sister_sites') or [])})
         if cmd == 'preflight':
             with captures.Browser() as b:
                 for s in stores:
@@ -129,7 +108,8 @@ def main(argv):
         with ThreadPoolExecutor(max_workers=max(1, jobs)) as ex:
             list(ex.map(lambda s: collect_store(s, out, plat), stores))
         if 'stores' in spec and spec.get('group_site'):
-            group_home(spec, out, plat)
+            gs = group.run(spec, out, plat)
+            group.compare(spec, out, gs.results)
         print(handoff.run(out) if '--handoff' in argv else f'finished; run: python3 -m collector handoff {out}')
         return 0
     print(__doc__)
