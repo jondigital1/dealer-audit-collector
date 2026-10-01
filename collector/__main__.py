@@ -64,6 +64,14 @@ def collect_store(request, out_dir, plat):
             ctx.close()
     except Exception as e:
         store.check('browser', 'failed', f'{type(e).__name__}: {str(e)[:300]}')
+    # pop-ups closed before captures (inner-page pop-ups are recap material, never timed: references/03_off_script.md)
+    closed = [c for c in captures.CLOSED_OVERLAYS if store.results.get('domain') and store.results['domain'].split('.')[0] in c[0]]
+    if closed:
+        texts = {}
+        for url, what, text in closed:
+            texts.setdefault(text[:80], []).append(url)
+        for text, urls in list(texts.items())[:3]:
+            store.noticed(f'a pop-up was closed before captures on {len(urls)} page(s) (first on {urls[0]}): "{text}"')
     step(store, 'flags', flags.apply, store)
     step(store, 'contact_sheet', captures.contact_sheet, store)
     store.finish()

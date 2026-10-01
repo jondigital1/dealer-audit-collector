@@ -35,7 +35,7 @@ def one_load(store, page, home, selectors, n, shot=True):
     page._collector_resp = resp
     if shot:
         page.wait_for_timeout(400)
-        captures.shot(store, page, 'popup_before.png')
+        captures.shot(store, page, 'popup_before.png', keep_overlays=True)
     res = page.evaluate(snippets.POPUP_POLL, {'selectors': selectors, 'maxMs': config.POPUP_POLL_MS})
     try:   # the load event's time, read once it has fired (a pop-up can open before it)
         page.wait_for_load_state('load', timeout=30000)
@@ -58,7 +58,7 @@ def one_load(store, page, home, selectors, n, shot=True):
         load['text'] = (res['hit'].get('text') or '').replace('\n', ' ')[:200]
     if res['hit'] and shot:
         page.wait_for_timeout(500)
-        captures.shot(store, page, 'popup_after.png')
+        captures.shot(store, page, 'popup_after.png', keep_overlays=True)
     return load
 
 

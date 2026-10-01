@@ -81,13 +81,52 @@ def goto(page, url, wait='load'):
         return page.goto(url, wait_until=wait, timeout=config.NAV_TIMEOUT)
 
 
-def prepare(page, zoom=None):
-    """Before every capture (references/04_capture.md): hide the extension button and the Podium bubble, park the
-    mouse off the page, scroll once so lazy images load, set the document zoom when the page renders small."""
+CLOSED_OVERLAYS = []   # (url, what, text) for every pop-up closed before a capture, for the run's notes
+
+
+def close_overlays(page):
+    """Close a pop-up sitting over the page (Tubbs' Dealer Inspire sites run a price-drop lead modal on inner pages
+    once a session is a few minutes old) through its own close control, so the capture shows the page. The cookie
+    panel is declined, not closed, and nothing is typed or submitted. Returns what was closed."""
+    try:
+        closed = page.evaluate(snippets.CLOSE_OVERLAY) or []
+    except Exception:
+        closed = []
+    # a modal that draws its close button inside its own iframe (the dbs price-drop lead modal on Tubbs' sites)
+    for fr in page.frames:
+        if fr == page.main_frame:
+            continue
+        try:
+            hit = fr.evaluate(snippets.CLOSE_IN_FRAME)
+        except Exception:
+            hit = None
+        if hit:
+            closed.append({'what': f'frame {fr.url[:60]}', 'text': hit})
+    if closed:
+        page.wait_for_timeout(500)
+    # whatever still sits over the page is hidden for the capture
+    try:
+        hidden = page.evaluate(snippets.HIDE_OVERLAY) or []
+    except Exception:
+        hidden = []
+    for h in hidden:
+        h['what'] = 'hidden ' + h['what']
+    closed += hidden
+    for c in closed:
+        CLOSED_OVERLAYS.append((page.url, c.get('what'), c.get('text')))
+    return closed
+
+
+def prepare(page, zoom=None, keep_overlays=False):
+    """Before every capture (references/04_capture.md): hide the extension button and the Podium bubble, decline the
+    cookie panel, close a pop-up sitting over the page (unless the capture is of that pop-up), park the mouse off the
+    page, scroll once so lazy images load, set the document zoom when the page renders small."""
     page.evaluate(snippets.HIDE, config.HIDE_BEFORE_CAPTURE)
     clicked = decline_cookie_banner(page)
     if clicked:
         page.wait_for_timeout(400)
+    if not keep_overlays:
+        close_overlays(page)
     page.mouse.move(config.VIEWPORT['width'] - 1, config.VIEWPORT['height'] // 2)
     page.evaluate(snippets.SCROLL_PASS)
     if zoom:
@@ -95,9 +134,9 @@ def prepare(page, zoom=None):
         page.wait_for_timeout(400)
 
 
-def shot(store, page, name, full_page=False, clip=None, zoom=None):
+def shot(store, page, name, full_page=False, clip=None, zoom=None, keep_overlays=False):
     """Save a capture as captures/<name>.png at scale 1 and record it in results.json."""
-    prepare(page, zoom)
+    prepare(page, zoom, keep_overlays=keep_overlays)
     path = store.captures / name
     page.screenshot(path=str(path), full_page=full_page, clip=clip, type='png')
     if zoom:
@@ -262,7 +301,7 @@ def decline_cookie_banner(page):
     try:
         return page.evaluate("""() => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
           for (const b of document.querySelectorAll('button, a, [role="button"]')) { const t = (b.innerText || '').trim(); if (!vis(b) || t.length > 40) continue;
-            if (/^(deny|deny targeting cookies|reject all|reject|decline|decline all|no thanks|opt out)$/i.test(t)) { b.click(); return t; } } return null; }""")
+            if (/^(deny|deny (targeting|marketing|all|optional)( cookies)?|reject all|reject|decline|decline all|no thanks|opt out)$/i.test(t)) { b.click(); return t; } } return null; }""")
     except Exception:
         return None
 

@@ -393,3 +393,34 @@ PHONE_BUTTONS = """() => { const vis = e => { const r = e.getBoundingClientRect(
     const r = e.getBoundingClientRect(); let host = ''; try { host = e.href ? new URL(e.href).host : ''; } catch (x) {}
     out.push({ text: clean(e.innerText || e.value || e.getAttribute('aria-label')).slice(0, 60), host, href: (e.href || '').slice(0, 200), y: Math.round(r.top + scrollY), h: Math.round(r.height), w: Math.round(r.width), tel: /^tel:/.test(e.getAttribute('href') || ''), target: e.target || '' }); }
   return out.filter(b => b.text); }"""
+
+# A pop-up over the page (a lead modal, a price-drop overlay, a lightbox) closed through its own close control before a
+# capture, the way a shopper closes it: never the cookie panel (declined separately), never the header or a nav drawer,
+# and never a form field. Gives what was closed so the run can note it.
+CLOSE_OVERLAY = """() => { const vis = e => { const r = e.getBoundingClientRect(); return r.width > 60 && r.height > 60 && r.top < innerHeight && r.bottom > 0; };
+  const out = [];
+  for (const e of document.querySelectorAll('body *')) { const cs = getComputedStyle(e); if (cs.position !== 'fixed' || !vis(e) || cs.visibility === 'hidden') continue;
+    const key = (e.className || '').toString() + ' ' + e.id; if (/ca-cookieconsent|ca-banner|onetrust|cookie|consent/i.test(key)) continue;
+    if (e.closest('header, nav, [class*="header"], [class*="navbar"], [class*="nav-"]')) continue;
+    const r = e.getBoundingClientRect(); const big = r.width * r.height > 0.2 * innerWidth * innerHeight;
+    if (!big && !/dbs-|modal|popup|pop-up|overlay|lightbox|dialog/i.test(key)) continue;
+    const c = [...e.querySelectorAll('button, a, [role="button"], [class*="close"], [aria-label]')].find(c => { const cr = c.getBoundingClientRect(); if (cr.width === 0) return false;
+      return /close|dismiss/i.test(c.getAttribute('aria-label') || '') || /(^|[\\s_-])close([\\s_-]|$)/i.test((c.className || '').toString()) || /^[\\u00d7\\u2715xX]$/.test((c.innerText || '').trim()); });
+    if (c) { const text = (e.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 140); c.click(); out.push({ what: e.tagName.toLowerCase() + '.' + key.trim().split(/\\s+/).slice(0, 2).join('.'), text }); if (out.length >= 2) break; } }
+  return out; }"""
+
+# Inside a child frame (a lead modal that renders its own close button in an iframe): click a visible Close control
+CLOSE_IN_FRAME = """() => { for (const c of document.querySelectorAll('[aria-label*="close" i], [class*="close"], button, a')) { const r = c.getBoundingClientRect(); if (r.width === 0) continue;
+  const key = (c.getAttribute('aria-label') || '') + ' ' + (c.className || '').toString(); const t = (c.innerText || '').trim();
+  if (/close|dismiss/i.test(key) || /^[\\u00d7\\u2715xX]$/.test(t)) { c.click(); return key.trim().slice(0, 60) || t; } } return null; }"""
+
+# A pop-up still over the page after its close control was tried (or that has none): hidden for the capture, the way the
+# Podium bubble is hidden. Gives what was hidden.
+HIDE_OVERLAY = """() => { const out = []; const vis = e => { const r = e.getBoundingClientRect(); return r.width > 60 && r.height > 60 && r.top < innerHeight && r.bottom > 0; };
+  for (const e of document.querySelectorAll('body *')) { const cs = getComputedStyle(e); if (cs.position !== 'fixed' || !vis(e) || cs.visibility === 'hidden') continue;
+    const key = (e.className || '').toString() + ' ' + e.id; if (/ca-cookieconsent|ca-banner|onetrust|cookie|consent/i.test(key)) continue;
+    if (e.closest('header, nav, [class*="header"], [class*="navbar"], [class*="nav-"]')) continue;
+    if (!/dbs-|modal|popup|pop-up|overlay|lightbox|dialog/i.test(key)) continue;
+    const text = (e.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 140); e.style.setProperty('display', 'none', 'important');
+    out.push({ what: e.tagName.toLowerCase() + '.' + key.trim().split(/\\s+/).slice(0, 2).join('.'), text }); if (out.length >= 3) break; }
+  return out; }"""
