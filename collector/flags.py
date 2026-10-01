@@ -159,7 +159,8 @@ def apply(store):
         for sl in r.get('slider') or []:
             m = re.search(r'\b(20[2-3]\d)\b', sl.get('alt') or '')
             if m and int(m.group(1)) < max(yrs):
-                F('slider_stale', 'Content Quality', sl['alt'], max(yrs), f'The home page slider still runs a {m.group(1)} slide', [sl.get('capture')])
+                # slide alts come from the page source; the home page capture stands in until a slide is captured
+                F('slider_stale', 'Content Quality', sl['alt'], max(yrs), f'The home page slider still runs a {m.group(1)} slide', [sl.get('capture') or 'captures/popup_before.png'])
     b = r.get('blog') or {}
     if b and (b.get('posts') == 0 or b.get('no_posts_text')):
         F('blog_empty', 'Empty Image Spaces', b.get('no_posts_text') or 0, 1, 'The blog has no posts', [b.get('capture')])
