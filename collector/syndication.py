@@ -103,7 +103,7 @@ def check(store, page):
     r = store.results
     research = [c for c in r.get('cx') or [] if c.get('page') == 'research' and c.get('url')]
     if not research:
-        store.check('research_content', 'skipped', 'no research page was opened for this store')
+        store.check('research_content', 'skipped', 'no research or model showroom page in the menu, so there is no body copy to test')
         return
     entry = research[0]
     # words that mark the dealer's own localized copy, not syndicated copy: the store, its city and state, the request's towns

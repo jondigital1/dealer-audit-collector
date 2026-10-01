@@ -172,6 +172,39 @@ def srp_links(store, page):
         store.check('srp_links', 'failed', str(e))
 
 
+def goto_twice(page, url, wait='domcontentloaded'):
+    """A landing gets a second try when the first fails (a navigation the page's own script interrupts, a reset
+    connection under three parallel stores), so one hiccup does not read as a broken link."""
+    try:
+        return captures.goto(page, url, wait=wait)
+    except Exception:
+        page.wait_for_timeout(1500)
+        return captures.goto(page, url, wait=wait)
+
+
+HOURS_PAGE = re.compile(r'hours|directions|contact|about', re.I)
+HOURS_PATHS = ['/contact-us/', '/about-us/', '/hours-directions/', '/hours-and-directions/', '/dealership/directions.htm', '/dealership/about.htm', '/contact.aspx', '/about-us.aspx']
+
+
+def hours_page_candidates(page):
+    """Where a site prints its schedules when the home page does not: the menu's hours, directions, contact and about
+    links in that order, then the platforms' usual paths."""
+    base = f'{urlparse(page.url).scheme}://{urlparse(page.url).netloc}'
+    try:
+        links = page.evaluate(snippets.MENU_LINKS)
+    except Exception:
+        links = []
+    order = ['hours', 'directions', 'contact', 'about']
+    rank = lambda l: next(order.index(w) for w in order if re.search(w, (l.get('label') or '') + ' ' + (l.get('path') or ''), re.I))
+    own = sorted([l for l in links if l.get('host') == urlparse(page.url).netloc and HOURS_PAGE.search((l.get('label') or '') + ' ' + (l.get('path') or ''))], key=rank)
+    seen, out = set(), []
+    for u in [l['href'] for l in own] + [base + pth for pth in HOURS_PATHS]:
+        if u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out[:6]
+
+
 def classify_landing(page, resp, dealer, href_path, group_host=None, sisters=()):
     """Where a real navigation landed: 404, home_redirect, empty, ok, group_site, sister_site, third_party or offsite."""
     landed = urlparse(page.url)
@@ -204,7 +237,7 @@ def crawl_links(store, page, links, dealer, prefix, max_links=24):
             break
         item = {'label': l.get('label'), 'href': l.get('href'), 'path': l.get('path'), 'status': None, 'result': None, 'landed_host': None, 'landed_path': None, 'capture_dest': None}
         try:
-            resp = captures.goto(page, l['href'], wait='domcontentloaded')
+            resp = goto_twice(page, l['href'])
             page.wait_for_timeout(1000)
             item['status'] = resp.status if resp else None
             item['landed_host'] = urlparse(page.url).netloc
@@ -219,6 +252,7 @@ def crawl_links(store, page, links, dealer, prefix, max_links=24):
         except Exception as e:
             item['result'] = 'error'
             item['status'] = type(e).__name__
+            item['error'] = str(e)[:140]
         out.append(item)
     try:
         captures.goto(page, start_url, wait='domcontentloaded')
@@ -253,7 +287,7 @@ def menu_crawl(store, page, max_items=72):
         item = {'top': l['top'], 'label': l['label'], 'href': l['href'], 'href_host': l['host'], 'path': l['path'], 'status': None, 'result': None,
                 'landed_host': None, 'landed_path': None, 'capture_menu': None, 'capture_dest': None}
         try:
-            resp = captures.goto(page, l['href'], wait='domcontentloaded')
+            resp = goto_twice(page, l['href'])
             page.wait_for_timeout(1200)
             landed = urlparse(page.url)
             item['status'] = resp.status if resp else None
@@ -285,7 +319,8 @@ def menu_crawl(store, page, max_items=72):
                 item['capture_dest'] = f'captures/{name}'
         except Exception as e:
             item['result'] = 'error'
-            item['status'] = f'{type(e).__name__}'
+            item['status'] = type(e).__name__
+            item['error'] = str(e)[:140]
         items.append(item)
     # the menu hovered open for every item that is not ok, boxed in red, shot with the mouse still on it
     r['menu'] = {'items_total': len(links), 'opened': len(items), 'items': items}   # the crawl is kept even if the shots fail
@@ -487,9 +522,36 @@ def contact_info(store, page):
         if hb:
             captures.box_shot(store, page, {'x': hb['x'], 'y': hb['y'], 'w': hb['w'], 'h': hb['h']}, 'hours_site.png', pad=12)
             store.results['address_hours']['hours_capture_note'] = f'{hb["blocks"]} hours block(s) in the shot' + (f', {clicked} panel(s) expanded first' if clicked else '')
+            store.results['address_hours']['captures'].append('captures/hours_site.png')
         else:
-            captures.element_shot(store, page, '[class*="ws-hours"], [id*="hours-app"], [class*="hours"], #hours, [id*="hours"]', 'hours_site.png', pad=12)
-        store.results['address_hours']['captures'].append('captures/hours_site.png')
+            # Dealer Inspire prints no schedule on the home page (the schema carries it); the Contact or About page does
+            shot_from = None
+            p2 = page.context.new_page()
+            try:
+                for u in hours_page_candidates(page):
+                    try:
+                        resp = captures.goto(p2, u, wait='domcontentloaded')
+                        if not resp or resp.status != 200 or NOT_FOUND.search(p2.title() or ''):
+                            continue
+                        p2.wait_for_timeout(1200)
+                        clicked = p2.evaluate(snippets.EXPAND_HOURS)
+                        if clicked:
+                            p2.wait_for_timeout(900)
+                        hb = p2.evaluate(snippets.HOURS_UNION)
+                        if hb:
+                            captures.box_shot(store, p2, {'x': hb['x'], 'y': hb['y'], 'w': hb['w'], 'h': hb['h']}, 'hours_site.png', pad=12)
+                            shot_from = p2.url
+                            store.results['address_hours']['hours_capture_note'] = f'{hb["blocks"]} hours block(s) in the shot, taken on {urlparse(p2.url).path} since the home page prints no schedule' + (f', {clicked} panel(s) expanded first' if clicked else '')
+                            store.results['address_hours']['hours_capture_page'] = p2.url
+                            break
+                    except Exception:
+                        continue
+            finally:
+                p2.close()
+            if shot_from:
+                store.results['address_hours']['captures'].append('captures/hours_site.png')
+            else:
+                store.not_captured('hours_site.png', 'no hours block on the home page or on the contact, about and directions pages (the schema.org hours are on record)')
     except Exception as e:
         store.not_captured('hours_site.png', str(e))
     if addr:
@@ -626,7 +688,7 @@ def pages(store, page):
         if any(c['page'] == key for c in r['cx']):
             continue
         try:
-            resp = captures.goto(page, l['href'], wait='domcontentloaded')
+            resp = goto_twice(page, l['href'])
             page.wait_for_timeout(1000)
             if not resp or resp.status != 200 or NOT_FOUND.search(page.title() or '') or page.url in {c['url'] for c in r['cx']}:
                 continue
@@ -642,7 +704,7 @@ def pages(store, page):
         except Exception as e:
             store.not_captured(f'specials page {l["label"]}', str(e))
     # every page the Research menu opens (model research pages), and research pages elsewhere in the menu by path
-    research = [l for l in links if (re.search(r'research|model', l['top'] or '', re.I) or re.search(r'research', l['path'] + ' ' + l['label'], re.I)) and l['host'] == urlparse(home).netloc][:12]
+    research = [l for l in links if (re.search(r'research|model', l['top'] or '', re.I) or re.search(r'research|showroom', l['path'] + ' ' + l['label'], re.I)) and l['host'] == urlparse(home).netloc][:12]
     for l in research:
         if store.over_soft_budget():
             store.not_captured(f'research page {l["label"]}', 'soft time budget reached')
