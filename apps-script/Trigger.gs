@@ -15,11 +15,11 @@
  *
  * It only reads the Audit Requests tab and sends rows whose Status and Audit Results are blank. It writes nothing.
  */
-var TAB_GID = 1668779070;   // the Audit Requests tab (the Google Form's tab)
+var TRIGGER_TAB_GID = 1668779070;   // the Audit Requests tab (the Google Form's tab)
 
 function requestsTab_() {
   var sheets = SpreadsheetApp.getActive().getSheets();
-  for (var i = 0; i < sheets.length; i++) if (sheets[i].getSheetId() === TAB_GID) return sheets[i];
+  for (var i = 0; i < sheets.length; i++) if (sheets[i].getSheetId() === TRIGGER_TAB_GID) return sheets[i];
   return SpreadsheetApp.getActive().getSheetByName('Audit Requests');
 }
 
