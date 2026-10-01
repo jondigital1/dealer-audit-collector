@@ -15,7 +15,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import bing, captures, config, conversion, flags, group, handoff, pagespeed, platforms, popups, preflight, site, spyfu
+from . import bing, captures, config, conversion, flags, group, handoff, pagespeed, platforms, popups, preflight, site, spyfu, syndication
 from .store import Store
 
 
@@ -59,6 +59,7 @@ def collect_store(request, out_dir, plat):
             step(store, 'conversion', conversion.vdp, store, page, rp, b)
             step(store, 'menu', site.menu_crawl, store, page)
             step(store, 'pages', site.pages, store, page)
+            step(store, 'research_content', syndication.check, store, page)
             rp.close()
             ctx.close()
     except Exception as e:
