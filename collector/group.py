@@ -28,12 +28,35 @@ GROUP_CARDS = """(names) => { const vis = e => { const r = e.getBoundingClientRe
   return out; }"""
 
 
+DAY = r'(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?'
+TIME = r'(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:-|to|\u2013)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)|closed)'
+# a card's schedule as the group site prints it: the department, then day or day-range lines with their times
+SCHEDULE = re.compile(rf'\b(sales|service|parts|collision|body shop)\b\s*(?:hours)?\s*:?\s*((?:{DAY}(?:\s*(?:-|to|&|,|and|\u2013)\s*{DAY})?\s*:?\s*{TIME}[\s,;]*)+)', re.I)
+
+
 def parse_card(text):
-    """The address, phone(s) and hours lines as printed on a card."""
+    """The address, phone(s) and hours lines as printed on a card: one line per department when the card names them,
+    else every line that carries a day and a time."""
     t = text.replace('\u00a0', ' ')
     m = ADDRESS.search(t.replace('\n', ' '))
-    hours = [ln.strip() for ln in t.split('\n') if re.search(r'\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b', ln, re.I) and re.search(r'am|pm|closed|\d{1,2}:\d{2}', ln, re.I)]
+    flat = re.sub(r'\s+', ' ', t)
+    hours = [f'{h.group(1).title()}: {h.group(2).strip(" ,;")}' for h in SCHEDULE.finditer(flat)]
+    if not hours:
+        hours = [ln.strip() for ln in t.split('\n') if re.search(r'\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b', ln, re.I) and re.search(r'am|pm|closed|\d{1,2}:\d{2}', ln, re.I)]
     return {'address': re.sub(r'\s+', ' ', m.group(0)).strip() if m else None, 'phones': PHONE.findall(t)[:4], 'hours_lines': hours[:14]}
+
+
+def card_hours(c):
+    """A card's hours by department from its lines ('Sales: Mon - Fri: 9:00 AM - 6:00 PM ...'); lines that name no
+    department go under 'card' and are compared against the sales hours."""
+    out = {}
+    for ln in c.get('hours_lines') or []:
+        m = re.match(r'(sales|service|parts|collision|body shop)\s*:?\s*(.+)', ln, re.I)
+        if m:
+            out[m.group(1).lower()] = m.group(2)
+        else:
+            out['card'] = (out.get('card', '') + ' | ' + ln).strip(' |')
+    return out
 
 
 def land(page, href):
@@ -114,7 +137,8 @@ def new_count(store, page, base_url):
                 continue
             page.wait_for_timeout(1500)
             cnt = page.evaluate(site.SRP_COUNT)
-            m = re.search(r'(\d[\d,]*)\s*(new\s+)?(vehicles?|results?|matches?|cars?|listings?)', cnt['el'] or '', re.I) or re.search(r'(\d[\d,]*)\s+(new\s+)?(vehicles?|results?|matches?|cars?|listings?)', cnt['body'], re.I)
+            words = r'(\d[\d,]*)\s*(new\s+)?(vehicles?|results?|matches?|cars?|listings?|for sale|in stock|available|new\b)'
+            m = re.search(words, cnt['el'] or '', re.I) or re.search(words, cnt['body'], re.I)
             if m:
                 return {'url': page.url, 'count': int(m.group(1).replace(',', '')), 'text': m.group(0), 'read_at': now_et()}
             return {'url': page.url, 'count': None, 'text': None, 'note': 'inventory page found, no count read'}
@@ -216,10 +240,10 @@ def compare(spec, out_dir, group_results):
             reads.append({'where': 'Bing', 'address': ah['bing_address'], 'hours': {'sales': ' | '.join(ah.get('bing_hours_rows') or [])} if ah.get('bing_hours_rows') else {}, 'capture': 'captures/bing_panel.png'})
         for c in group_results.get('group_cards') or []:
             if c['store'] == s['store']:
-                reads.append({'where': f'the group site card on {urlparse(c["page"]).path or "/"}', 'address': c.get('address'), 'hours': {'card': ' | '.join(c.get('hours_lines') or [])} if c.get('hours_lines') else {}, 'phones': c.get('phones'), 'capture': c.get('capture') or f'../group/{next((p.get("capture") for p in group_results.get("group_pages", []) if p.get("url") == c["page"]), "") or ""}'})
+                reads.append({'where': f'the group site card on {urlparse(c["page"]).path or "/"}', 'address': c.get('address'), 'hours': card_hours(c), 'phones': c.get('phones'), 'capture': c.get('capture') or f'../group/{next((p.get("capture") for p in group_results.get("group_pages", []) if p.get("url") == c["page"]), "") or ""}'})
         for c in group_results.get('sister_cards') or []:
             if c['store'] == s['store']:
-                reads.append({'where': f'{c["sister_site"]} on {urlparse(c["page"]).path or "/"}', 'address': c.get('address'), 'hours': {'card': ' | '.join(c.get('hours_lines') or [])} if c.get('hours_lines') else {}, 'phones': c.get('phones'), 'capture': f'../group/{next((p.get("capture") for p in group_results.get("sister_pages", []) if p.get("url") == c["page"]), "") or ""}'})
+                reads.append({'where': f'{c["sister_site"]} on {urlparse(c["page"]).path or "/"}', 'address': c.get('address'), 'hours': card_hours(c), 'phones': c.get('phones'), 'capture': f'../group/{next((p.get("capture") for p in group_results.get("sister_pages", []) if p.get("url") == c["page"]), "") or ""}'})
         mism = []
         base_addr = address_key(ah.get('site_address'))
         for rd in reads[1:]:
@@ -239,10 +263,18 @@ def compare(spec, out_dir, group_results):
                     if diffs:
                         mism.append({'what': 'hours', 'dept': dept, 'where': rd['where'], 'diffs': diffs, 'capture': rd.get('capture')})
         r['cross_site'] = {'reads': reads, 'mismatches': mism, 'compared_at': now_et()}
+        # one line per distinct spelling, with the places that print it
         addr_m = [m for m in mism if m['what'] == 'address']
         if addr_m:
-            st.flag('address_format_group', 'Address and Hours', {'site': ah.get('site_address'), **{m['where']: m['other'] for m in addr_m}}, 'one format',
-                    'Use one address format on Google, Bing, the site and the group site', [m['capture'] for m in addr_m if m.get('capture')])
+            by_text = {}
+            for m in addr_m:
+                by_text.setdefault(m['other'], {'places': [], 'captures': []})
+                by_text[m['other']]['places'].append(m['where'])
+                if m.get('capture') and m['capture'] not in by_text[m['other']]['captures']:
+                    by_text[m['other']]['captures'].append(m['capture'])
+            st.flag('address_format_group', 'Address and Hours', {'site': ah.get('site_address'), **{t: v['places'] for t, v in by_text.items()}}, 'one format',
+                    'Use one address format on Google, Bing, the site and the group site', [c for v in by_text.values() for c in v['captures']][:6])
+            r['cross_site']['address_spellings'] = {t: v['places'] for t, v in by_text.items()}
         hours_m = [m for m in mism if m['what'] == 'hours']
         if hours_m:
             st.flag('hours_group', 'Address and Hours', [{m['where']: m['diffs']} for m in hours_m], 'same schedule',
