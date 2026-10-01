@@ -95,12 +95,23 @@ def apply(store):
     if l.get('srp_http_links') and l.get('srp_is_https', True):
         n, tot = l['srp_http_links'], l.get('srp_vehicle_links')
         F('vehicle_links', 'Vehicle Links', n, 0, f'All {tot} vehicle links use http:// on an https:// site' if n == tot else f'{n} of {tot} vehicle links use http:// on an https:// site', ['typed grid'])
+    # the manufacturer's own parts and accessories integration (GM's accessories.chevrolet.com, Hyundai's
+    # hyundaiaccessories.com) goes in the notes, not on a slide (references/02_steps.md); the flag says so
+    oem_parts = re.compile(r'accessories\.(chevrolet|cadillac|buick|gmc|ford|toyota|honda|nissan|kia|hyundai)\.com|[a-z0-9]+\.(hyundai|kia|nissan|toyota|honda|ford|mopar|gm)accessories\.com|hyundaiaccessories\.com|parts\.(ford|gm|toyota)\.com', re.I)
     for it in ((r.get('menu') or {}).get('items') or []):
         ev = [c for c in (it.get('capture_menu'), it.get('capture_dest')) if c]
+        label = it.get('label') or it.get('path')
         if it['result'] in ('404', 'home_redirect'):
-            F('broken_link', 'Broken Link', it['label'], None, f'The {it["label"]} menu link opens a 404 page' if it['result'] == '404' else f'The {it["label"]} menu link sends shoppers back to the home page', ev)
+            F('broken_link', 'Broken Link', label, None, f'The {label} menu link opens a 404 page' if it['result'] == '404' else f'The {label} menu link sends shoppers back to the home page', ev)
         elif it['result'] in ('offsite', 'third_party', 'group_site', 'sister_site'):
-            F('offsite_link', 'Off-Site Link', it['label'], None, f'The {it["top"] or it["label"]} menu sends shoppers to {it["landed_host"]}', ev)
+            F('offsite_link', 'Off-Site Link', label, None, f'The {it["top"] or label} menu sends shoppers to {it["landed_host"]}', ev)
+            if it.get('landed_host') and oem_parts.search(it['landed_host']):
+                r['flags'][-1]['note'] = 'the manufacturer\'s parts and accessories integration: the skill puts it in the notes, not on a slide'
+        elif it['result'] == 'empty':
+            F('empty_page', 'Customer Experience', it.get('empty_text') or 'empty', None, f'The {label} page is empty' + (f' ("{it["empty_text"]}")' if it.get('empty_text') else ''), ev)
+    for rl in r.get('research_links') or []:
+        if rl.get('result') == 'empty':
+            F('empty_page', 'Customer Experience', rl.get('empty_text') or 'empty', None, f'The {rl.get("label")} research page is empty' + (f' ("{rl["empty_text"]}")' if rl.get('empty_text') else ''), [c for c in (rl.get('capture_dest'),) if c])
     for rl in r.get('research_links') or []:
         ev = [c for c in (rl.get('capture_dest'),) if c]
         if rl.get('result') in ('404', 'home_redirect'):
