@@ -339,6 +339,8 @@ def menu_crawl(store, page, max_items=72):
         store.check('menu', 'ok')
         return
     page.wait_for_timeout(800)
+    if captures.decline_cookie_banner(page):   # the hover shots do not go through prepare(), so the panel is declined here
+        page.wait_for_timeout(400)
     for item in items:
         if item['result'] in (None, 'ok', 'error'):
             continue
