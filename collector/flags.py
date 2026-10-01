@@ -1,27 +1,40 @@
 """Tier 2: the skill's thresholds as numbers (SPEC.md section 6). Each flag is a candidate with the skill's standard
 line attached; Claude confirms every one against references/02_steps.md. Phase 3 emits the flags whose numbers it
 has; Phase 4 completes the set. Nothing here puts anything on a slide."""
+import datetime
 import re
 
 HOLIDAY_ORDER = ['New Year\'s Day', 'MLK Day', 'Presidents Day', 'Good Friday', 'Easter', 'Memorial Day', 'Juneteenth', 'Independence Day', 'July 4th',
                  'Labor Day', 'Columbus Day', 'Veterans Day', 'Thanksgiving', 'Christmas Eve', 'Christmas Day', 'Christmas', 'New Year\'s Eve']
 
 
+DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+
 def norm_hours(text):
-    """Hours text into a comparable form: 'mon 9:00am-7:00pm' rows, so '9 AM - 7 PM' and '9:00am - 7:00pm' agree."""
+    """Hours text into a comparable form: {'mon': '9:00am-7:00pm'} rows, so '9 AM - 7 PM' and '9:00am - 7:00pm' agree
+    and 'Mon - Fri' or 'Mon to Fri' fills every day it spans."""
     if not text:
         return None
     t = text if isinstance(text, str) else ' | '.join(text)
     t = t.lower().replace('\u2013', '-').replace('\u2014', '-').replace(' to ', '-')   # a scraped en or em dash becomes a hyphen
     rows = {}
-    for m in re.finditer(r'\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*[:|]?\s*(closed|(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm))', t):
-        day = m.group(1)
-        if m.group(2) == 'closed':
-            rows[day] = 'closed'
-            continue
-        h1, m1, p1, h2, m2, p2 = m.group(3), m.group(4) or '00', m.group(5), m.group(6), m.group(7) or '00', m.group(8)
-        p1 = p1 or ('am' if int(h1) < 12 else 'pm')
-        rows[day] = f'{int(h1)}:{m1}{p1}-{int(h2)}:{m2}{p2}'
+    day = r'(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?'
+    for m in re.finditer(rf'\b{day}(?:(\s*(?:-|through|thru|&|,|and)\s*){day})?\s*[:|]?\s*(closed|(\d{{1,2}})(?::(\d{{2}}))?\s*(am|pm)?\s*-\s*(\d{{1,2}})(?::(\d{{2}}))?\s*(am|pm))', t):
+        d1, sep, d2, val = m.group(1), m.group(2) or '', m.group(3), m.group(4)
+        if d2 and re.search(r'-|through|thru', sep):
+            i, j = DAYS.index(d1), DAYS.index(d2)
+            days = DAYS[i:j + 1] if i <= j else DAYS[i:] + DAYS[:j + 1]
+        else:
+            days = [d1] + ([d2] if d2 else [])
+        if val == 'closed':
+            row = 'closed'
+        else:
+            h1, m1, p1, h2, m2, p2 = m.group(5), m.group(6) or '00', m.group(7), m.group(8), m.group(9) or '00', m.group(10)
+            p1 = p1 or ('am' if int(h1) < 12 else 'pm')
+            row = f'{int(h1)}:{m1}{p1}-{int(h2)}:{m2}{p2}'
+        for d in days:
+            rows[d] = row
     return rows or None
 
 
@@ -35,6 +48,9 @@ def apply(store):
     r = store.results
     F = store.flag
     ps = r.get('pagespeed') or {}
+    pf = r.get('preflight') or {}
+    if pf.get('redirected_to_other_domain') and pf.get('final_host'):
+        F('domain_redirect', 'Pre-flight', pf.get('final_host'), r.get('domain'), f'{r.get("domain")} now lands on {pf.get("final_host")}: a rename or a sale until proven otherwise', [])
 
     def pick(k):   # the API run when there is a key, else the report page's numbers
         rec = ps.get(k) or {}
@@ -150,16 +166,20 @@ def apply(store):
             what = re.sub(r'\b(specials?|special offers?|offers?)\b', '', (cx.get('label') or cx['page'].replace('specials_', '').replace('_', ' ')), flags=re.I)
             what = re.sub(r'\s+', ' ', what).strip().title()
             F('specials_empty', 'Customer Experience', cx['text_flags'][0], None, f'The {what + " " if what else ""}Specials page is empty', [cx.get('capture')])
+        # stale means last year's model while this year's are in stock (Nissan's 2025 pages in September 2026): the bar is
+        # the calendar year, not the newest model year on the SRP, since next year's models arrive mid-year
+        this_year = datetime.date.today().year
         if cx.get('page') == 'research' and cx.get('model_years') and (r.get('pages') or {}).get('srp_model_years'):
             newest = max(int(y) for y in r['pages']['srp_model_years'])
             page_years = [int(y) for y in cx['model_years']]
-            if max(page_years) < newest:
-                F('research_stale', 'Model Research Pages', page_years, newest, f'The {cx.get("label")} research page is built for {max(page_years)} while {newest}s are in stock', [cx.get('capture')])
+            if max(page_years) < this_year and max(page_years) < newest:
+                F('research_stale', 'Model Research Pages', page_years, this_year, f'The {cx.get("label")} research page is built for {max(page_years)} while {newest}s are in stock', [cx.get('capture')])
     yrs = [int(y) for y in (r.get('pages') or {}).get('srp_model_years') or []]
     if yrs:
+        this_year = datetime.date.today().year
         for sl in r.get('slider') or []:
             m = re.search(r'\b(20[2-3]\d)\b', sl.get('alt') or '')
-            if m and int(m.group(1)) < max(yrs):
+            if m and int(m.group(1)) < this_year and int(m.group(1)) < max(yrs):
                 # slide alts come from the page source; the home page capture stands in until a slide is captured
                 F('slider_stale', 'Content Quality', sl['alt'], max(yrs), f'The home page slider still runs a {m.group(1)} slide', [sl.get('capture') or 'captures/popup_before.png'])
     rc = r.get('research_content') or {}
