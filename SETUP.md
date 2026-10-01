@@ -103,3 +103,32 @@ One-time setup, in the same Google Cloud project as the PageSpeed key (free, no 
 
 The log is `state/trigger.log`; each run's request file lands in `requests/auto/` and its output under `out/auto/`.
 Until the key is in place the trigger logs "no service account key" every 15 minutes and does nothing else.
+
+## The push trigger (the sheet tells the collector to go)
+
+Jonathan's call, Oct 1, 2026: the sheet pushes a new request to the collector the moment it lands, instead of the VM
+polling the sheet every 15 minutes. The sheet's Apps Script sends the request rows themselves, so the VM needs no
+Google credential at all (the service account route above stays documented in case it is ever wanted).
+
+How it runs: `python3 -m collector listen` is a small HTTP server on the VM (127.0.0.1:8787) that cron starts at boot
+and a watchdog pokes every five minutes (`bin_listener.sh`). Tailscale Funnel fronts it at
+https://agents.taild0ebeb.ts.net so Google's servers can reach it over HTTPS. The Apps Script
+(`apps-script/Trigger.gs`) POSTs the Audit Requests tab's unfinished rows to /trigger with a shared secret in the
+X-Trigger-Secret header: on every form submit, on every change to the sheet, and once an hour as a sweep. The listener
+applies the same rules as the polling trigger (unfinished rows only, groups by Auto Group Name, one run per row, one
+run at a time) and Taildrops each zip to the Desktop PC. Nothing on the VM reads or writes the sheet.
+
+One-time setup:
+
+1. Funnel. On the VM `tailscale funnel --bg 8787` prints a link the first time; open it as the tailnet admin and
+   enable Funnel for the node (it adds the `funnel` node attribute to the tailnet policy). `tailscale funnel status`
+   then shows https://agents.taild0ebeb.ts.net proxied to 127.0.0.1:8787.
+2. The secret. `.env` on the VM carries TRIGGER_SECRET (generated when the listener was set up; `grep TRIGGER_SECRET
+   .env` shows it) and LISTENER_PORT=8787.
+3. The script. In the sheet, Extensions > Apps Script: add a file Trigger.gs with the contents of
+   `apps-script/Trigger.gs`. Project Settings > Script Properties: COLLECTOR_URL =
+   https://agents.taild0ebeb.ts.net/trigger and TRIGGER_SECRET = the value from .env. Triggers: onRequestSubmitted
+   (from spreadsheet, on form submit), onSheetChanged (from spreadsheet, on change), sweepUnfinished (time-driven,
+   hourly). Run sweepUnfinished once from the editor to authorize it; its log should end with "collector answered 202".
+4. Check from the VM: `tail state/listener.log` shows each push with the jobs it queued; `curl -s localhost:8787/health`
+   answers ok.

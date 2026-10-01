@@ -5,6 +5,7 @@
   python3 -m collector platform-test                                 Decision 7: which platforms load headless
   python3 -m collector handoff DIR                                   zip each finished store and send it
   python3 -m collector trigger [--dry-run] [--csv FILE] [--once]      read the requests sheet and run what is waiting
+  python3 -m collector listen [--port 8787]                          the push listener the sheet's Apps Script calls
 
 A store's run, in the skill's order: pre-flight; set-up (the three pages); PageSpeed on the home page only, mobile
 and desktop (the report page, the API as fallback, the treemap); pop-up timing in a fresh context; SEO META fields;
@@ -92,6 +93,9 @@ def main(argv):
     if cmd == 'platform-test':
         platforms.run()
         return 0
+    if cmd == 'listen':
+        from . import listener
+        return listener.main(argv[1:])
     if cmd == 'trigger':
         from . import trigger
         return trigger.main(argv[1:])
